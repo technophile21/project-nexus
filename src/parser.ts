@@ -5,9 +5,23 @@ interface ParsedSection {
   tasks: RawTask[];
 }
 
+export interface ParsedMilestone {
+  name: string;
+  explicitId: string | null;
+  dateStr: string;
+}
+
+export interface ParsedQuarter {
+  name: string;
+  startDateStr: string;
+  endDateStr: string;
+}
+
 export interface ParseResult {
   title: string;
   sections: ParsedSection[];
+  milestones: ParsedMilestone[];
+  quarters: ParsedQuarter[];
 }
 
 const DATE_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
@@ -104,6 +118,8 @@ export function parseGanttText(text: string): ParseResult {
   const lines = text.split('\n');
   let title = 'Gantt Chart';
   const sections: ParsedSection[] = [];
+  const milestones: ParsedMilestone[] = [];
+  const quarters: ParsedQuarter[] = [];
   let currentSection: ParsedSection | null = null;
   let sectionIndex = 0;
 
@@ -117,8 +133,41 @@ export function parseGanttText(text: string): ParseResult {
       continue;
     }
 
-    // dateFormat — we accept but don't use (always DD-MM-YYYY)
+    // dateFormat — accepted but not used
     if (line.toLowerCase().startsWith('dateformat ')) {
+      continue;
+    }
+
+    // quarter  "quarter <name> :<startDate>, <endDate>"
+    if (line.toLowerCase().startsWith('quarter ')) {
+      const rest = line.slice(8).trim();
+      const ci = rest.indexOf(':');
+      if (ci !== -1) {
+        const name = rest.slice(0, ci).trim();
+        const parts = rest.slice(ci + 1).split(',').map(p => p.trim());
+        if (parts.length >= 2) {
+          quarters.push({ name, startDateStr: parts[0], endDateStr: parts[1] });
+        }
+      }
+      continue;
+    }
+
+    // milestone  "milestone <name> :<id>, <date>"  OR  "milestone <name> :<date>"
+    if (line.toLowerCase().startsWith('milestone ')) {
+      const rest = line.slice(10).trim();
+      const ci = rest.indexOf(':');
+      if (ci !== -1) {
+        const name = rest.slice(0, ci).trim();
+        const params = rest.slice(ci + 1).trim();
+        const parts = params.split(',').map(p => p.trim());
+        if (parts.length >= 2 && WORD_PATTERN.test(parts[0]) && !DATE_PATTERN.test(parts[0])) {
+          // <id>, <date>
+          milestones.push({ name, explicitId: parts[0], dateStr: parts[1] });
+        } else if (parts.length >= 1 && DATE_PATTERN.test(parts[0])) {
+          // <date> only
+          milestones.push({ name, explicitId: null, dateStr: parts[0] });
+        }
+      }
       continue;
     }
 
@@ -131,7 +180,7 @@ export function parseGanttText(text: string): ParseResult {
       continue;
     }
 
-    // task line: "Task Name :params" OR "Task Name :id, date, duration"
+    // task line: "Task Name :params"
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
 
@@ -156,5 +205,5 @@ export function parseGanttText(text: string): ParseResult {
     });
   }
 
-  return { title, sections };
+  return { title, sections, milestones, quarters };
 }

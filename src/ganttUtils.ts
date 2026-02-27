@@ -1,4 +1,4 @@
-import type { RawTask, ResolvedTask, Section, GanttData } from './types';
+import type { RawTask, ResolvedTask, Section, GanttData, Milestone, Quarter } from './types';
 import type { ParseResult } from './parser';
 
 export const SECTION_COLORS = [
@@ -10,6 +10,16 @@ export const SECTION_COLORS = [
   '#8b5cf6', // violet
   '#ef4444', // red
   '#14b8a6', // teal
+];
+
+// Distinct colors cycled per quarter
+export const QUARTER_COLORS = [
+  '#3b82f6', // blue   – Q1
+  '#10b981', // emerald – Q2
+  '#f59e0b', // amber   – Q3
+  '#a855f7', // purple  – Q4
+  '#06b6d4', // cyan    – Q5+
+  '#f43f5e', // rose
 ];
 
 // Returns Monday of the week containing `date`
@@ -138,7 +148,35 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
     });
   }
 
-  // Compute chart bounds
+  // Resolve milestones
+  const milestones: Milestone[] = [];
+  for (let mi = 0; mi < parsed.milestones.length; mi++) {
+    const pm = parsed.milestones[mi];
+    const date = parseDateStr(pm.dateStr);
+    if (!date) continue;
+    milestones.push({
+      id: pm.explicitId ?? `_m${mi}`,
+      name: pm.name,
+      date,
+    });
+  }
+
+  // Resolve quarters
+  const quarters: Quarter[] = [];
+  for (let qi = 0; qi < parsed.quarters.length; qi++) {
+    const pq = parsed.quarters[qi];
+    const startDate = parseDateStr(pq.startDateStr);
+    const endDate = parseDateStr(pq.endDateStr);
+    if (!startDate || !endDate) continue;
+    quarters.push({
+      name: pq.name,
+      startDate,
+      endDate,
+      color: QUARTER_COLORS[qi % QUARTER_COLORS.length],
+    });
+  }
+
+  // Compute chart bounds from tasks
   let chartStart = new Date(9999, 0, 1);
   let chartEnd = new Date(0, 0, 1);
 
@@ -147,13 +185,25 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
     if (task.resolvedEnd > chartEnd) chartEnd = task.resolvedEnd;
   }
 
-  // Fallback if no tasks
-  if (taskMap.size === 0) {
+  // Expand bounds to include milestones
+  for (const m of milestones) {
+    if (m.date < chartStart) chartStart = m.date;
+    if (m.date > chartEnd) chartEnd = m.date;
+  }
+
+  // Expand bounds to include quarters
+  for (const q of quarters) {
+    if (q.startDate < chartStart) chartStart = q.startDate;
+    if (q.endDate > chartEnd) chartEnd = q.endDate;
+  }
+
+  // Fallback if nothing at all
+  if (taskMap.size === 0 && milestones.length === 0 && quarters.length === 0) {
     chartStart = snapToWeekStart(new Date());
     chartEnd = addDays(chartStart, 13 * 7);
   }
 
-  // Pad one week on each side for breathing room
+  // Pad one week on each side
   chartStart = snapToWeekStart(addDays(chartStart, -7));
   chartEnd = snapToWeekEnd(addDays(chartEnd, 7));
 
@@ -166,5 +216,7 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
     chartStart,
     chartEnd,
     totalWeeks,
+    milestones,
+    quarters,
   };
 }
