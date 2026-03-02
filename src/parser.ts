@@ -110,7 +110,7 @@ function parseParams(params: string, taskName: string): Omit<RawTask, 'name' | '
   }
 
   // Fallback: orphan 7d
-  console.warn(`Could not parse task params for "${taskName}": "${params}"`);
+  console.warn('[parser] Could not parse task params for "%s": "%s"', taskName, params);
   return { explicitId: null, startDateStr: null, dependency: null, duration: 7 };
 }
 
@@ -142,11 +142,15 @@ export function parseGanttText(text: string): ParseResult {
     if (line.toLowerCase().startsWith('quarter ')) {
       const rest = line.slice(8).trim();
       const ci = rest.indexOf(':');
-      if (ci !== -1) {
+      if (ci === -1) {
+        console.warn('[parser] Malformed quarter line — missing ":" separator: "%s"', line);
+      } else {
         const name = rest.slice(0, ci).trim();
         const parts = rest.slice(ci + 1).split(',').map(p => p.trim());
         if (parts.length >= 2) {
           quarters.push({ name, startDateStr: parts[0], endDateStr: parts[1] });
+        } else {
+          console.warn('[parser] Quarter "%s" missing start or end date', name);
         }
       }
       continue;
@@ -156,7 +160,9 @@ export function parseGanttText(text: string): ParseResult {
     if (line.toLowerCase().startsWith('milestone ')) {
       const rest = line.slice(10).trim();
       const ci = rest.indexOf(':');
-      if (ci !== -1) {
+      if (ci === -1) {
+        console.warn('[parser] Malformed milestone line — missing ":" separator: "%s"', line);
+      } else {
         const name = rest.slice(0, ci).trim();
         const params = rest.slice(ci + 1).trim();
         const parts = params.split(',').map(p => p.trim());
@@ -166,6 +172,8 @@ export function parseGanttText(text: string): ParseResult {
         } else if (parts.length >= 1 && DATE_PATTERN.test(parts[0])) {
           // <date> only
           milestones.push({ name, explicitId: null, dateStr: parts[0] });
+        } else {
+          console.warn('[parser] Could not parse milestone params for "%s": "%s"', name, params);
         }
       }
       continue;

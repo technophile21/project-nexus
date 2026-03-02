@@ -99,6 +99,7 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
         // resolvedEnd of parent is a Sunday, so +1 = Monday
       } else {
         // Dependency not yet resolved (forward reference or typo) — fall back to prevEnd
+        console.warn('[ganttUtils] Unresolved dependency "%s" for task "%s" — falling back to previous task end', raw.dependency, raw.name);
         resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
       }
     } else if (raw.startDateStr) {
@@ -153,7 +154,10 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
   for (let mi = 0; mi < parsed.milestones.length; mi++) {
     const pm = parsed.milestones[mi];
     const date = parseDateStr(pm.dateStr);
-    if (!date) continue;
+    if (!date) {
+      console.warn('[ganttUtils] Invalid milestone date "%s" for "%s" — skipping', pm.dateStr, pm.name);
+      continue;
+    }
     milestones.push({
       id: pm.explicitId ?? `_m${mi}`,
       name: pm.name,
@@ -167,7 +171,10 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
     const pq = parsed.quarters[qi];
     const startDate = parseDateStr(pq.startDateStr);
     const endDate = parseDateStr(pq.endDateStr);
-    if (!startDate || !endDate) continue;
+    if (!startDate || !endDate) {
+      console.warn('[ganttUtils] Invalid quarter dates "%s"/"%s" for "%s" — skipping', pq.startDateStr, pq.endDateStr, pq.name);
+      continue;
+    }
     quarters.push({
       name: pq.name,
       startDate,
