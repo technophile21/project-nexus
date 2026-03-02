@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import Editor from './Editor';
 import GanttChart from './GanttChart';
 import { parseGanttText } from '../parser';
@@ -20,8 +20,23 @@ section QA
 Task 5 :01-05-2026, 21d
 Task 6 :14d`;
 
+function downloadTxt(content: string, name: string) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name.endsWith('.txt') ? name : name + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
 export default function App() {
   const [text, setText] = useState(DEFAULT_TEXT);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ganttData = useMemo(() => {
     try {
@@ -32,13 +47,61 @@ export default function App() {
     }
   }, [text]);
 
-  const handleChange = useCallback((t: string) => setText(t), []);
+  const handleChange = useCallback((t: string) => {
+    setText(t);
+    setIsDirty(true);
+  }, []);
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string;
+      setText(content);
+      setFileName(file.name.replace(/\.txt$/, ''));
+      setIsDirty(false);
+    };
+    reader.readAsText(file, 'utf-8');
+    e.target.value = '';
+  }, []);
+
+  const handleOpen = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleSave = useCallback(() => {
+    const name = fileName ?? 'untitled';
+    downloadTxt(text, name);
+    setFileName(name);
+    setIsDirty(false);
+  }, [text, fileName]);
+
+  const handleSaveAs = useCallback(() => {
+    downloadTxt(text, fileName ?? 'untitled');
+    setIsDirty(false);
+  }, [text, fileName]);
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
       {/* Left panel: editor */}
       <div className="w-[380px] min-w-[280px] max-w-[520px] shrink-0 flex flex-col h-full">
-        <Editor value={text} onChange={handleChange} />
+        <Editor
+          value={text}
+          onChange={handleChange}
+          fileName={fileName}
+          isDirty={isDirty}
+          onOpen={handleOpen}
+          onSave={handleSave}
+          onSaveAs={handleSaveAs}
+        />
       </div>
 
       {/* Divider */}
