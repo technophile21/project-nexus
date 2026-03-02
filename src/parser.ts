@@ -99,7 +99,19 @@ function parseParams(params: string, taskName: string, warnings: ParseWarning[])
     };
   }
 
-  // Case 4: "<DATE>, <N>d"  — no explicit task ID
+  // Case 4: "<ID>, <N>d" — explicit id + duration only, no date/dependency
+  // Task starts after the previous task in the same section (or today if first).
+  if (parts.length >= 2 && ID_PATTERN.test(parts[0]) && DURATION_PATTERN.exec(parts[1])) {
+    const dMatch = DURATION_PATTERN.exec(parts[1])!;
+    return {
+      explicitId: parts[0],
+      startDateStr: null,
+      dependency: null,
+      duration: parseInt(dMatch[1]),
+    };
+  }
+
+  // Case 5: "<DATE>, <N>d"  — no explicit task ID
   if (parts.length >= 2 && DATE_PATTERN.test(parts[0])) {
     const dMatch = DURATION_PATTERN.exec(parts[1]);
     return {
@@ -110,7 +122,7 @@ function parseParams(params: string, taskName: string, warnings: ParseWarning[])
     };
   }
 
-  // Case 5: "<N>d" only — orphan duration, OR single valid ID with default duration
+  // Case 6: "<N>d" only — orphan duration, OR single valid ID with default duration
   if (parts.length === 1) {
     const dMatch = DURATION_PATTERN.exec(parts[0]);
     if (dMatch) {
@@ -177,7 +189,13 @@ export function parseGanttText(text: string): ParseResult {
         const name = rest.slice(0, ci).trim();
         const parts = rest.slice(ci + 1).split(',').map(p => p.trim());
         if (parts.length >= 2) {
-          quarters.push({ name, startDateStr: parts[0], endDateStr: parts[1] });
+          const [startStr, endStr] = [parts[0], parts[1]];
+          if (!DATE_PATTERN.test(startStr) || !DATE_PATTERN.test(endStr)) {
+            console.warn('[parser] Quarter "%s" has invalid date format', name);
+            warnings.push({ message: `Quarter "${name}" has an invalid date format — use DD-MM-YYYY (e.g., 01-03-2026).` });
+          } else {
+            quarters.push({ name, startDateStr: startStr, endDateStr: endStr });
+          }
         } else {
           console.warn('[parser] Quarter "%s" missing start or end date', name);
           warnings.push({ message: `Quarter "${name}" requires both a start and end date.` });
