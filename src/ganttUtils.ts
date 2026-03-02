@@ -1,4 +1,4 @@
-import type { RawTask, ResolvedTask, Section, GanttData, Milestone, Quarter } from './types';
+import type { RawTask, ResolvedTask, Section, GanttData, Milestone, Quarter, ParseWarning } from './types';
 import type { ParseResult } from './parser';
 
 export const SECTION_COLORS = [
@@ -67,9 +67,10 @@ export function weeksBetween(start: Date, end: Date): number {
   return Math.floor((end.getTime() - start.getTime()) / msPerWeek);
 }
 
-export function resolveGanttData(parsed: ParseResult): GanttData {
+export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnings: ParseWarning[] } {
   const taskMap = new Map<string, ResolvedTask>();
   const resolvedSections: Section[] = [];
+  const warnings: ParseWarning[] = [];
 
   // First pass: assign IDs and collect all raw tasks
   const allRawTasks: Array<{ raw: RawTask; id: string; sectionIdx: number; taskIdx: number }> = [];
@@ -100,6 +101,7 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
       } else {
         // Dependency not yet resolved (forward reference or typo) — fall back to prevEnd
         console.warn('[ganttUtils] Unresolved dependency "%s" for task "%s" — falling back to previous task end', raw.dependency, raw.name);
+        warnings.push({ message: `Task "${raw.name}" depends on "${raw.dependency}" which was not found — check for typos.` });
         resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
       }
     } else if (raw.startDateStr) {
@@ -156,6 +158,7 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
     const date = parseDateStr(pm.dateStr);
     if (!date) {
       console.warn('[ganttUtils] Invalid milestone date "%s" for "%s" — skipping', pm.dateStr, pm.name);
+      warnings.push({ message: `Milestone "${pm.name}" has an invalid date "${pm.dateStr}" — use DD-MM-YYYY format.` });
       continue;
     }
     milestones.push({
@@ -173,6 +176,7 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
     const endDate = parseDateStr(pq.endDateStr);
     if (!startDate || !endDate) {
       console.warn('[ganttUtils] Invalid quarter dates "%s"/"%s" for "%s" — skipping', pq.startDateStr, pq.endDateStr, pq.name);
+      warnings.push({ message: `Quarter "${pq.name}" has invalid dates — use DD-MM-YYYY format.` });
       continue;
     }
     quarters.push({
@@ -217,13 +221,16 @@ export function resolveGanttData(parsed: ParseResult): GanttData {
   const totalWeeks = weeksBetween(chartStart, chartEnd) + 1;
 
   return {
-    title: parsed.title,
-    sections: resolvedSections,
-    taskMap,
-    chartStart,
-    chartEnd,
-    totalWeeks,
-    milestones,
-    quarters,
+    data: {
+      title: parsed.title,
+      sections: resolvedSections,
+      taskMap,
+      chartStart,
+      chartEnd,
+      totalWeeks,
+      milestones,
+      quarters,
+    },
+    warnings,
   };
 }

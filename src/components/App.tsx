@@ -1,8 +1,10 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import Editor from './Editor';
 import GanttChart from './GanttChart';
+import ErrorBanner from './ErrorBanner';
 import { parseGanttText } from '../parser';
 import { resolveGanttData } from '../ganttUtils';
+import type { ParseWarning } from '../types';
 
 const DEFAULT_TEXT = `title Tasks Planner
 dateFormat DD-MM-YYYY
@@ -51,15 +53,24 @@ export default function App() {
   // Fallback <input> for browsers without File System Access API.
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const ganttData = useMemo(() => {
+  const { ganttData, parseWarnings } = useMemo(() => {
     try {
       const parsed = parseGanttText(text);
-      return resolveGanttData(parsed);
+      const { data, warnings: rw } = resolveGanttData(parsed);
+      return { ganttData: data, parseWarnings: [...parsed.warnings, ...rw] };
     } catch (err) {
       console.error('[App] Failed to parse/resolve gantt data:', err);
-      return null;
+      return { ganttData: null, parseWarnings: [] };
     }
   }, [text]);
+
+  const [fileErrors, setFileErrors] = useState<ParseWarning[]>([]);
+  const [warningsDismissed, setWarningsDismissed] = useState(false);
+
+  const warningsKey = parseWarnings.map(w => w.message).join('\n');
+  useEffect(() => { setWarningsDismissed(false); }, [warningsKey]);
+
+  const allWarnings = [...parseWarnings, ...fileErrors];
 
   const handleChange = useCallback((t: string) => {
     setText(t);
@@ -86,12 +97,14 @@ export default function App() {
         setText(content);
         setFileName(handle.name.replace(/\.txt$/, ''));
         setIsDirty(false);
+        setFileErrors([]);
         console.log('[App] Opened file:', handle.name);
       } catch (err: any) {
         if (err?.name === 'AbortError') {
           console.log('[App] Open file dialog cancelled by user');
         } else {
           console.error('[App] Failed to open file:', err);
+          setFileErrors([{ message: `Failed to open file: ${err?.message ?? 'unknown error'}`, severity: 'error' }]);
         }
       }
     } else {
@@ -115,6 +128,7 @@ export default function App() {
     };
     reader.onerror = () => {
       console.error('[App] FileReader failed to read file:', file.name);
+      setFileErrors([{ message: `Failed to read file "${file.name}".`, severity: 'error' }]);
     };
     reader.readAsText(file, 'utf-8');
     e.target.value = '';
@@ -137,12 +151,14 @@ export default function App() {
         const name = handle.name.replace(/\.txt$/, '');
         setFileName(name);
         setIsDirty(false);
+        setFileErrors([]);
         console.log('[App] Saved As:', handle.name);
       } catch (err: any) {
         if (err?.name === 'AbortError') {
           console.log('[App] Save As dialog cancelled by user');
         } else {
           console.error('[App] Failed to Save As:', err);
+          setFileErrors([{ message: `Failed to save file: ${err?.message ?? 'unknown error'}`, severity: 'error' }]);
         }
       }
     } else {
@@ -167,9 +183,11 @@ export default function App() {
         const name = fileHandleRef.current.name.replace(/\.txt$/, '');
         setFileName(name);
         setIsDirty(false);
+        setFileErrors([]);
         console.log('[App] Saved:', fileHandleRef.current.name);
-      } catch (err) {
+      } catch (err: any) {
         console.error('[App] Failed to save file:', err);
+        setFileErrors([{ message: `Failed to save file: ${err?.message ?? 'unknown error'}`, severity: 'error' }]);
       }
     } else {
       console.log('[App] No file handle — delegating to Save As');
@@ -179,6 +197,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
+      {allWarnings.length > 0 && !warningsDismissed && (
+        <ErrorBanner warnings={allWarnings} onDismiss={() => setWarningsDismissed(true)} />
+      )}
       <input
         ref={fileInputRef}
         type="file"

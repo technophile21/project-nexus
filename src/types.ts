@@ -33,6 +33,11 @@ export interface Quarter {
   color: string;
 }
 
+export interface ParseWarning {
+  message: string;
+  severity?: 'warning' | 'error';
+}
+
 export interface GanttData {
   title: string;
   sections: Section[];

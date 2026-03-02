@@ -1,4 +1,4 @@
-import type { RawTask } from './types';
+import type { RawTask, ParseWarning } from './types';
 
 interface ParsedSection {
   name: string;
@@ -22,13 +22,14 @@ export interface ParseResult {
   sections: ParsedSection[];
   milestones: ParsedMilestone[];
   quarters: ParsedQuarter[];
+  warnings: ParseWarning[];
 }
 
 const DATE_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
 const DURATION_PATTERN = /^(\d+)d$/;
 const WORD_PATTERN = /^\w+$/;
 
-function parseParams(params: string, taskName: string): Omit<RawTask, 'name' | 'sectionId'> {
+function parseParams(params: string, taskName: string, warnings: ParseWarning[]): Omit<RawTask, 'name' | 'sectionId'> {
   const trimmed = params.trim();
 
   // Case 1: "after <id> [,] <N>d"
@@ -111,6 +112,7 @@ function parseParams(params: string, taskName: string): Omit<RawTask, 'name' | '
 
   // Fallback: orphan 7d
   console.warn('[parser] Could not parse task params for "%s": "%s"', taskName, params);
+  warnings.push({ message: `Task "${taskName}" parameters could not be parsed — check the syntax guide.` });
   return { explicitId: null, startDateStr: null, dependency: null, duration: 7 };
 }
 
@@ -120,6 +122,7 @@ export function parseGanttText(text: string): ParseResult {
   const sections: ParsedSection[] = [];
   const milestones: ParsedMilestone[] = [];
   const quarters: ParsedQuarter[] = [];
+  const warnings: ParseWarning[] = [];
   let currentSection: ParsedSection | null = null;
   let sectionIndex = 0;
 
@@ -144,6 +147,7 @@ export function parseGanttText(text: string): ParseResult {
       const ci = rest.indexOf(':');
       if (ci === -1) {
         console.warn('[parser] Malformed quarter line — missing ":" separator: "%s"', line);
+        warnings.push({ message: `Quarter definition is missing a ":" separator — expected: quarter <name> :DD-MM-YYYY, DD-MM-YYYY` });
       } else {
         const name = rest.slice(0, ci).trim();
         const parts = rest.slice(ci + 1).split(',').map(p => p.trim());
@@ -151,6 +155,7 @@ export function parseGanttText(text: string): ParseResult {
           quarters.push({ name, startDateStr: parts[0], endDateStr: parts[1] });
         } else {
           console.warn('[parser] Quarter "%s" missing start or end date', name);
+          warnings.push({ message: `Quarter "${name}" requires both a start and end date.` });
         }
       }
       continue;
@@ -162,6 +167,7 @@ export function parseGanttText(text: string): ParseResult {
       const ci = rest.indexOf(':');
       if (ci === -1) {
         console.warn('[parser] Malformed milestone line — missing ":" separator: "%s"', line);
+        warnings.push({ message: `Milestone definition is missing a ":" separator — expected: milestone <name> :DD-MM-YYYY` });
       } else {
         const name = rest.slice(0, ci).trim();
         const params = rest.slice(ci + 1).trim();
@@ -174,6 +180,7 @@ export function parseGanttText(text: string): ParseResult {
           milestones.push({ name, explicitId: null, dateStr: parts[0] });
         } else {
           console.warn('[parser] Could not parse milestone params for "%s": "%s"', name, params);
+          warnings.push({ message: `Milestone "${name}" has an unrecognised parameter format — expected: :DD-MM-YYYY or :ID, DD-MM-YYYY` });
         }
       }
       continue;
@@ -204,7 +211,7 @@ export function parseGanttText(text: string): ParseResult {
     }
 
     const sectionId = `s${sectionIndex}`;
-    const taskFields = parseParams(params, taskName);
+    const taskFields = parseParams(params, taskName, warnings);
 
     currentSection.tasks.push({
       name: taskName,
@@ -213,5 +220,5 @@ export function parseGanttText(text: string): ParseResult {
     });
   }
 
-  return { title, sections, milestones, quarters };
+  return { title, sections, milestones, quarters, warnings };
 }
