@@ -27,12 +27,13 @@ export interface ParseResult {
 
 const DATE_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
 const DURATION_PATTERN = /^(\d+)d$/;
-const WORD_PATTERN = /^\w+$/;
+// Task / milestone IDs must start with a letter, then letters/digits/underscores only.
+const ID_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 function parseParams(params: string, taskName: string, warnings: ParseWarning[]): Omit<RawTask, 'name' | 'sectionId'> {
   const trimmed = params.trim();
 
-  // Case 1: "after <id> [,] <N>d"
+  // Case 1: "after <depId> [,] <N>d"  — no explicit task ID
   if (trimmed.toLowerCase().startsWith('after ')) {
     const rest = trimmed.slice(6).trim();
     const parts = rest.split(',').map(p => p.trim());
@@ -57,8 +58,7 @@ function parseParams(params: string, taskName: string, warnings: ParseWarning[])
   // Case 2: "<ID>, <DATE>, <N>d"
   if (
     parts.length >= 3 &&
-    WORD_PATTERN.test(parts[0]) &&
-    !DATE_PATTERN.test(parts[0]) &&
+    ID_PATTERN.test(parts[0]) &&
     DATE_PATTERN.test(parts[1])
   ) {
     const dMatch = DURATION_PATTERN.exec(parts[2]);
@@ -70,24 +70,36 @@ function parseParams(params: string, taskName: string, warnings: ParseWarning[])
     };
   }
 
-  // Case 3: "<ID>, after <depId>, <N>d"
+  // Case 3: "<ID>, after <depId>[, <DATE>], <N>d"
+  // The optional <DATE> allows specifying an earliest-start constraint alongside a dependency.
   if (
     parts.length >= 2 &&
-    WORD_PATTERN.test(parts[0]) &&
-    !DATE_PATTERN.test(parts[0]) &&
+    ID_PATTERN.test(parts[0]) &&
     parts[1].toLowerCase().startsWith('after ')
   ) {
     const depId = parts[1].slice(6).trim();
-    const dMatch = parts[2] ? DURATION_PATTERN.exec(parts[2]) : null;
+    let startDateStr: string | null = null;
+    let durationStr: string | undefined;
+
+    if (parts.length >= 4 && DATE_PATTERN.test(parts[2])) {
+      // <ID>, after <depId>, <DATE>, <Nd>
+      startDateStr = parts[2];
+      durationStr = parts[3];
+    } else {
+      // <ID>, after <depId>, <Nd>
+      durationStr = parts[2];
+    }
+
+    const dMatch = durationStr ? DURATION_PATTERN.exec(durationStr) : null;
     return {
       explicitId: parts[0],
-      startDateStr: null,
+      startDateStr,
       dependency: depId,
       duration: dMatch ? parseInt(dMatch[1]) : 7,
     };
   }
 
-  // Case 4: "<DATE>, <N>d"
+  // Case 4: "<DATE>, <N>d"  — no explicit task ID
   if (parts.length >= 2 && DATE_PATTERN.test(parts[0])) {
     const dMatch = DURATION_PATTERN.exec(parts[1]);
     return {
@@ -98,21 +110,34 @@ function parseParams(params: string, taskName: string, warnings: ParseWarning[])
     };
   }
 
-  // Case 5: "<N>d" only — orphan
+  // Case 5: "<N>d" only — orphan duration, OR single valid ID with default duration
   if (parts.length === 1) {
     const dMatch = DURATION_PATTERN.exec(parts[0]);
     if (dMatch) {
       return { explicitId: null, startDateStr: null, dependency: null, duration: parseInt(dMatch[1]) };
     }
-    // Single ID with no duration — treat as id, default duration
-    if (WORD_PATTERN.test(parts[0]) && !DATE_PATTERN.test(parts[0])) {
+    if (ID_PATTERN.test(parts[0])) {
       return { explicitId: parts[0], startDateStr: null, dependency: null, duration: 7 };
     }
   }
 
-  // Fallback: orphan 7d
+  // Fallback: could not parse. Try to give a more specific reason.
   console.warn('[parser] Could not parse task params for "%s": "%s"', taskName, params);
-  warnings.push({ message: `Task "${taskName}" parameters could not be parsed — check the syntax guide.` });
+  const firstPart = parts[0];
+  // Detect an invalid ID: has letters (looks like an ID attempt) but fails ID_PATTERN
+  if (
+    firstPart &&
+    !DATE_PATTERN.test(firstPart) &&
+    !DURATION_PATTERN.exec(firstPart) &&
+    /[A-Za-z]/.test(firstPart) &&
+    !ID_PATTERN.test(firstPart)
+  ) {
+    warnings.push({
+      message: `Task "${taskName}" has an invalid ID "${firstPart}" — IDs must start with a letter and contain only letters, digits, or underscores (e.g. T1, myTask).`,
+    });
+  } else {
+    warnings.push({ message: `Task "${taskName}" parameters could not be parsed — check the syntax guide.` });
+  }
   return { explicitId: null, startDateStr: null, dependency: null, duration: 7 };
 }
 
@@ -172,7 +197,7 @@ export function parseGanttText(text: string): ParseResult {
         const name = rest.slice(0, ci).trim();
         const params = rest.slice(ci + 1).trim();
         const parts = params.split(',').map(p => p.trim());
-        if (parts.length >= 2 && WORD_PATTERN.test(parts[0]) && !DATE_PATTERN.test(parts[0])) {
+        if (parts.length >= 2 && ID_PATTERN.test(parts[0]) && DATE_PATTERN.test(parts[1])) {
           // <id>, <date>
           milestones.push({ name, explicitId: parts[0], dateStr: parts[1] });
         } else if (parts.length >= 1 && DATE_PATTERN.test(parts[0])) {
@@ -212,6 +237,11 @@ export function parseGanttText(text: string): ParseResult {
 
     const sectionId = `s${sectionIndex}`;
     const taskFields = parseParams(params, taskName, warnings);
+
+    // Req: task IDs are mandatory — warn if none was parsed
+    if (!taskFields.explicitId) {
+      warnings.push({ message: `Task "${taskName}" is missing a required ID — add an explicit ID (e.g. :T1, ...).` });
+    }
 
     currentSection.tasks.push({
       name: taskName,

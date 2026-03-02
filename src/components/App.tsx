@@ -17,10 +17,10 @@ Task 1 :T1, 01-03-2026, 15d
 Task 2 :T2, after T1, 20d
 section Backend
 Task 3 :T3, 01-03-2026, 20d
-Task 4 :after T3, 14d
+Task 4 :T4, after T3, 14d
 section QA
-Task 5 :01-05-2026, 21d
-Task 6 :14d`;
+Task 5 :T5, 01-05-2026, 21d
+Task 6 :T6, 14d`;
 
 // Minimal types for File System Access API (not in default TS DOM lib)
 type FSWritable = { write(data: string): Promise<void>; close(): Promise<void> };

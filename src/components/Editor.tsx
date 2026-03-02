@@ -76,13 +76,13 @@ export default function Editor({ value, onChange, fileName, isDirty, onOpen, onS
         value={value}
         onChange={e => onChange(e.target.value)}
         spellCheck={false}
-        placeholder={`title My Project\ndateFormat DD-MM-YYYY\nsection Phase 1\nTask A :T1, 01-01-2026, 14d\nTask B :after T1, 10d`}
+        placeholder={`title My Project\ndateFormat DD-MM-YYYY\nsection Phase 1\nTask A :T1, 01-01-2026, 14d\nTask B :T2, after T1, 10d`}
       />
       <div className="px-4 py-2 border-t border-gray-700 text-xs text-gray-500 space-y-0.5">
-        <div><span className="text-indigo-400">Task :ID, DATE, Nd</span> — with explicit id</div>
-        <div><span className="text-indigo-400">Task :after ID, Nd</span> — dependent task</div>
-        <div><span className="text-indigo-400">Task :DATE, Nd</span> — with start date</div>
-        <div><span className="text-indigo-400">Task :Nd</span> — follows previous task</div>
+        <div><span className="text-indigo-400">Task :ID, DATE, Nd</span> — id, start date, duration</div>
+        <div><span className="text-indigo-400">Task :ID, after ID, Nd</span> — id, dependency, duration</div>
+        <div><span className="text-indigo-400">Task :ID, after ID, DATE, Nd</span> — dep + earliest start</div>
+        <div><span className="text-indigo-400">Task :ID, Nd</span> — id, duration (follows previous)</div>
       </div>
     </div>
   );

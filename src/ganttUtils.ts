@@ -49,13 +49,15 @@ export function addDays(date: Date, days: number): Date {
   return d;
 }
 
-// Parse "DD-MM-YYYY" into a Date
+// Parse "DD-MM-YYYY" into a Date.
+// Round-trip validation rejects overflowing values like 31-02-2026 or 99-99-9999.
 function parseDateStr(s: string): Date | null {
   const parts = s.split('-');
   if (parts.length !== 3) return null;
   const [dd, mm, yyyy] = parts.map(Number);
   if (isNaN(dd) || isNaN(mm) || isNaN(yyyy)) return null;
   const d = new Date(yyyy, mm - 1, dd);
+  if (d.getFullYear() !== yyyy || d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -95,18 +97,40 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
     if (raw.dependency) {
       const parent = taskMap.get(raw.dependency);
       if (parent) {
-        // Start next Monday after parent ends
+        // Default: start the Monday after the dependency ends (resolvedEnd is always a Sunday)
         resolvedStart = addDays(parent.resolvedEnd, 1);
-        // resolvedEnd of parent is a Sunday, so +1 = Monday
+
+        // If an explicit start date is also provided (Case 3 extended syntax), validate it
+        if (raw.startDateStr) {
+          const explicitDate = parseDateStr(raw.startDateStr);
+          if (!explicitDate) {
+            warnings.push({ message: `Task "${raw.name}" has an invalid start date "${raw.startDateStr}" — use DD-MM-YYYY format with a valid calendar date.` });
+            // Keep: start after dependency
+          } else if (explicitDate.getTime() <= parent.resolvedEnd.getTime()) {
+            warnings.push({ message: `Task "${raw.name}" start date ${raw.startDateStr} falls on or before dependency "${raw.dependency}" end — starting after dependency instead.` });
+            // Keep: start after dependency
+          } else {
+            // Valid constraint: explicit date is after dependency end, use it
+            resolvedStart = snapToWeekStart(explicitDate);
+          }
+        }
       } else {
-        // Dependency not yet resolved (forward reference or typo) — fall back to prevEnd
+        // Dependency not yet resolved (forward reference or typo) — fall back to prevEnd or explicit date
         console.warn('[ganttUtils] Unresolved dependency "%s" for task "%s" — falling back to previous task end', raw.dependency, raw.name);
         warnings.push({ message: `Task "${raw.name}" depends on "${raw.dependency}" which was not found — check for typos.` });
-        resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
+        if (raw.startDateStr) {
+          const explicitDate = parseDateStr(raw.startDateStr);
+          resolvedStart = explicitDate ? snapToWeekStart(explicitDate) : (prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date()));
+        } else {
+          resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
+        }
       }
     } else if (raw.startDateStr) {
-      const parsed = parseDateStr(raw.startDateStr);
-      resolvedStart = parsed ? snapToWeekStart(parsed) : snapToWeekStart(new Date());
+      const parsedDate = parseDateStr(raw.startDateStr);
+      if (!parsedDate) {
+        warnings.push({ message: `Task "${raw.name}" has an invalid start date "${raw.startDateStr}" — use DD-MM-YYYY format with a valid calendar date.` });
+      }
+      resolvedStart = parsedDate ? snapToWeekStart(parsedDate) : snapToWeekStart(new Date());
     } else {
       // Orphan: start after previous task in section (or today if first)
       resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
