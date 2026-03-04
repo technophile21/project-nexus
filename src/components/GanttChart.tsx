@@ -19,11 +19,11 @@ const MS_DIAMOND = 5; // milestone diamond half-size
 
 // ── Helpers ────────────────────────────────────────────────────────────
 interface RowInfo {
-  type: 'section' | 'task';
+  type: 'section' | 'lane';
   sectionIdx: number;
-  taskIdx?: number;
+  laneIdx?: number;
   y: number;
-  task?: ResolvedTask;
+  tasks?: ResolvedTask[];
   sectionName?: string;
   sectionColor?: string;
 }
@@ -53,6 +53,30 @@ function getBarColor(
   if (hovered.dependency === task.id) return { fill: '#f97316', opacity: 1 };
   if (task.dependency === hoveredId) return { fill: '#22c55e', opacity: 1 };
   return { fill: sectionColor, opacity: 0.2 };
+}
+
+function assignLanes(tasks: ResolvedTask[]): ResolvedTask[][] {
+  const sorted = [...tasks].sort(
+    (a, b) => a.resolvedStart.getTime() - b.resolvedStart.getTime()
+  );
+  const lanes: ResolvedTask[][] = [];
+  const laneEnd: Date[] = [];
+  for (const task of sorted) {
+    let placed = false;
+    for (let i = 0; i < lanes.length; i++) {
+      if (laneEnd[i].getTime() < task.resolvedStart.getTime()) {
+        lanes[i].push(task);
+        laneEnd[i] = task.resolvedEnd;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      lanes.push([task]);
+      laneEnd.push(task.resolvedEnd);
+    }
+  }
+  return lanes;
 }
 
 export default function GanttChart({ data }: GanttChartProps) {
@@ -150,8 +174,9 @@ export default function GanttChart({ data }: GanttChartProps) {
     const section = sections[si];
     rows.push({ type: 'section', sectionIdx: si, y: totalHeight, sectionName: section.name, sectionColor: section.color });
     totalHeight += SECTION_HEADER_HEIGHT;
-    for (let ti = 0; ti < section.tasks.length; ti++) {
-      rows.push({ type: 'task', sectionIdx: si, taskIdx: ti, y: totalHeight, task: section.tasks[ti], sectionColor: section.color });
+    const lanes = assignLanes(section.tasks);
+    for (let li = 0; li < lanes.length; li++) {
+      rows.push({ type: 'lane', sectionIdx: si, laneIdx: li, y: totalHeight, tasks: lanes[li], sectionColor: section.color });
       totalHeight += ROW_HEIGHT;
     }
   }
@@ -236,7 +261,7 @@ export default function GanttChart({ data }: GanttChartProps) {
             {/* Header background (full height matches timeline) */}
             <rect width={LABEL_WIDTH} height={headerHeight} fill="#1e293b" />
 
-            {/* "Task" label centered in the week row part */}
+            {/* "Section" label centered in the week row part */}
             <text
               x={14}
               y={weekRowY + WEEK_HEADER_HEIGHT / 2 + 5}
@@ -244,7 +269,7 @@ export default function GanttChart({ data }: GanttChartProps) {
               fontSize={12}
               fontWeight="600"
             >
-              Task
+              Section
             </text>
             <line x1={0} y1={headerHeight} x2={LABEL_WIDTH} y2={headerHeight} stroke="#334155" strokeWidth={1} />
 
@@ -263,30 +288,11 @@ export default function GanttChart({ data }: GanttChartProps) {
                   </g>
                 );
               }
-              const task = row.task!;
-              const isHovered = task.id === hoveredId;
-              const dimmed = hoveredId !== null && !isHovered;
+              // Lane rows: no task labels, just the grid line
               return (
-                <g key={`lbl-t-${task.id}`}>
-                  <rect x={0} y={row.y} width={LABEL_WIDTH} height={ROW_HEIGHT} fill={isHovered ? '#1e293b' : 'transparent'} />
+                <g key={`lbl-l-${row.sectionIdx}-${row.laneIdx}`}>
+                  <rect x={0} y={row.y} width={LABEL_WIDTH} height={ROW_HEIGHT} fill="transparent" />
                   <line x1={0} y1={row.y + ROW_HEIGHT} x2={LABEL_WIDTH} y2={row.y + ROW_HEIGHT} stroke="#1e293b" strokeWidth={1} />
-                  <text
-                    x={14}
-                    y={row.y + ROW_HEIGHT / 2 + 5}
-                    fill={dimmed ? '#374151' : '#d1d5db'}
-                    fontSize={12}
-                    fontWeight={isHovered ? '600' : '400'}
-                  >
-                    {task.name}
-                  </text>
-                  {task.dependency && (
-                    <circle
-                      cx={LABEL_WIDTH - 14}
-                      cy={row.y + ROW_HEIGHT / 2}
-                      r={3.5}
-                      fill={isHovered ? '#f97316' : dimmed ? '#1f2937' : '#475569'}
-                    />
-                  )}
                 </g>
               );
             })}
@@ -413,47 +419,62 @@ export default function GanttChart({ data }: GanttChartProps) {
                 );
               }
 
-              const task = row.task!;
-              const color = row.sectionColor!;
-              const { fill, opacity } = getBarColor(task, color, hoveredId, taskMap);
-              const bx = barX(task);
-              const bw = barWidth(task);
-              const by = row.y + BAR_PADDING_TOP;
-              const isHovered = task.id === hoveredId;
-
+              // Lane row: one grid line + one bar per task in the lane
+              const laneColor = row.sectionColor!;
+              const laneY = row.y;
               return (
-                <g key={`bar-t-${task.id}`}>
-                  <line x1={0} y1={row.y + ROW_HEIGHT} x2={chartWidth} y2={row.y + ROW_HEIGHT} stroke="#1e293b" strokeWidth={1} />
-
-                  <rect
-                    x={bx} y={by} width={bw} height={BAR_HEIGHT} rx={BAR_RADIUS}
-                    fill={fill} fillOpacity={opacity}
-                    style={{ cursor: 'pointer', transition: 'fill-opacity 0.12s, fill 0.12s' }}
-                    onMouseEnter={e => handleMouseEnter(task, e)}
-                    onMouseLeave={handleMouseLeave}
-                  />
-                  {isHovered && (
-                    <rect
-                      x={bx - 1} y={by - 1} width={bw + 2} height={BAR_HEIGHT + 2}
-                      rx={BAR_RADIUS + 1} fill="none"
-                      stroke={fill} strokeWidth={2} strokeOpacity={0.5}
-                      style={{ pointerEvents: 'none' }}
-                    />
-                  )}
-                  {bw > 50 && (
-                    <text x={bx + 10} y={by + BAR_HEIGHT / 2 + 4} fill="white" fontSize={11} fontWeight="500"
-                      fillOpacity={opacity > 0.4 ? 0.9 : 0.4}
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                      {task.duration}d
-                    </text>
-                  )}
-                  {bw > 90 && (
-                    <text x={bx + bw - 8} y={by + BAR_HEIGHT / 2 + 4} fill="white" fontSize={10} textAnchor="end"
-                      fillOpacity={opacity > 0.4 ? 0.65 : 0.3}
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                      {format(task.resolvedEnd, 'MMM d')}
-                    </text>
-                  )}
+                <g key={`bar-l-${row.sectionIdx}-${row.laneIdx}`}>
+                  <line x1={0} y1={laneY + ROW_HEIGHT} x2={chartWidth} y2={laneY + ROW_HEIGHT} stroke="#1e293b" strokeWidth={1} />
+                  {(row.tasks ?? []).map((task) => {
+                    const { fill, opacity } = getBarColor(task, laneColor, hoveredId, taskMap);
+                    const bx = barX(task);
+                    const bw = barWidth(task);
+                    const by = laneY + BAR_PADDING_TOP;
+                    const isHovered = task.id === hoveredId;
+                    const clipId = `clip-bar-${task.id}`;
+                    return (
+                      <g key={`bar-t-${task.id}`}>
+                        <defs>
+                          <clipPath id={clipId}>
+                            <rect x={bx} y={by} width={bw} height={BAR_HEIGHT} rx={BAR_RADIUS} />
+                          </clipPath>
+                        </defs>
+                        <rect
+                          x={bx} y={by} width={bw} height={BAR_HEIGHT} rx={BAR_RADIUS}
+                          fill={fill} fillOpacity={opacity}
+                          style={{ cursor: 'pointer', transition: 'fill-opacity 0.12s, fill 0.12s' }}
+                          onMouseEnter={e => handleMouseEnter(task, e)}
+                          onMouseLeave={handleMouseLeave}
+                        />
+                        {isHovered && (
+                          <rect
+                            x={bx - 1} y={by - 1} width={bw + 2} height={BAR_HEIGHT + 2}
+                            rx={BAR_RADIUS + 1} fill="none"
+                            stroke={fill} strokeWidth={2} strokeOpacity={0.5}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        )}
+                        <text
+                          clipPath={`url(#${clipId})`}
+                          x={bx + 8} y={by + BAR_HEIGHT / 2 + 4}
+                          fill="white" fontSize={11} fontWeight="500"
+                          fillOpacity={opacity > 0.4 ? 0.9 : 0.4}
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                          {task.name}
+                        </text>
+                        {bw > 90 && (
+                          <text
+                            clipPath={`url(#${clipId})`}
+                            x={bx + bw - 8} y={by + BAR_HEIGHT / 2 + 4}
+                            fill="white" fontSize={10} textAnchor="end"
+                            fillOpacity={opacity > 0.4 ? 0.55 : 0.25}
+                            style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                            {format(task.resolvedEnd, 'MMM d')}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
                 </g>
               );
             })}
