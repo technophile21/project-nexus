@@ -123,7 +123,7 @@ export async function exportToExcel(data: GanttData): Promise<void> {
       for (let c = 1; c <= META_COLS; c++) {
         const cell = taskRow.getCell(c);
         cell.fill = solidFill(ROW_BG_ARGB);
-        cell.font = { color: { argb: 'FFCBd5e1' }, size: 10 }; // slate-300
+        cell.font = { color: { argb: 'FFCBD5E1' }, size: 10 }; // slate-300
         cell.alignment = { horizontal: c === 1 ? 'left' : 'center', vertical: 'middle', indent: c === 1 ? 2 : 0 };
       }
 
@@ -133,10 +133,6 @@ export async function exportToExcel(data: GanttData): Promise<void> {
         const cell = taskRow.getCell(META_COLS + 1 + i);
         const spansWeek = weekDate >= task.resolvedStart && weekDate <= task.resolvedEnd;
         cell.fill = solidFill(spansWeek ? sectionArgb : ROW_BG_ARGB);
-        if (!spansWeek) {
-          // Subtle grid tint on empty week cells
-          cell.fill = solidFill(i % 2 === 0 ? '0F141F28' : ROW_BG_ARGB);
-        }
       }
     }
   }
