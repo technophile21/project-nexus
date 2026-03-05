@@ -73,12 +73,16 @@ export async function exportToExcel(data: GanttData): Promise<void> {
     const msRow = sheet.addRow(values);
     msRow.height = 18;
 
-    // Style all meta cells
-    for (let c = 1; c <= META_COLS; c++) {
+    // Style meta cells (amber tint) + empty week cells (white)
+    for (let c = 1; c <= totalCols; c++) {
       const cell = msRow.getCell(c);
-      cell.fill = solidFill(MS_ROW_ARGB);
-      cell.font = { bold: c === 1, color: { argb: MS_TEXT_ARGB }, size: 10 };
-      cell.alignment = { horizontal: 'left', vertical: 'middle', indent: c === 1 ? 1 : 0 };
+      if (c <= META_COLS) {
+        cell.fill = solidFill(MS_ROW_ARGB);
+        cell.font = { bold: c === 1, color: { argb: MS_TEXT_ARGB }, size: 10 };
+        cell.alignment = { horizontal: 'left', vertical: 'middle', indent: c === 1 ? 1 : 0 };
+      } else {
+        cell.fill = solidFill('FFFFFFFF');
+      }
     }
 
     // Marker cell in week column
@@ -91,7 +95,7 @@ export async function exportToExcel(data: GanttData): Promise<void> {
   }
 
   // ── Sections and tasks ─────────────────────────────────────────────────────
-  const ROW_BG_ARGB = 'FF0F172A'; // slate-950 (chart background)
+  const ROW_BG_ARGB = 'FFFFFFFF'; // white
 
   for (const section of sections) {
     const sectionArgb = hexToArgb(section.color);
@@ -114,25 +118,34 @@ export async function exportToExcel(data: GanttData): Promise<void> {
         format(task.resolvedStart, 'dd-MM-yyyy'),
         format(task.resolvedEnd, 'dd-MM-yyyy'),
         `${task.duration}d`,
-        ...weekDates.map(() => null), // values filled via cell styling below
+        ...weekDates.map(() => null),
       ];
       const taskRow = sheet.addRow(taskRowValues);
       taskRow.height = 18;
 
-      // Style meta columns
+      // Style meta columns — white background, dark text
       for (let c = 1; c <= META_COLS; c++) {
         const cell = taskRow.getCell(c);
         cell.fill = solidFill(ROW_BG_ARGB);
-        cell.font = { color: { argb: 'FFCBD5E1' }, size: 10 }; // slate-300
+        cell.font = { color: { argb: 'FF1E293B' }, size: 10 }; // slate-800
         cell.alignment = { horizontal: c === 1 ? 'left' : 'center', vertical: 'middle', indent: c === 1 ? 2 : 0 };
       }
 
-      // Week cells — colored if task spans that week
-      for (let i = 0; i < weekDates.length; i++) {
-        const weekDate = weekDates[i];
-        const cell = taskRow.getCell(META_COLS + 1 + i);
-        const spansWeek = weekDate >= task.resolvedStart && weekDate <= task.resolvedEnd;
-        cell.fill = solidFill(spansWeek ? sectionArgb : ROW_BG_ARGB);
+      // Task bar: merge spanning week cells and display task name inside
+      const startWeekIdx = Math.max(0, weeksBetween(chartStart, task.resolvedStart));
+      const endWeekIdx = Math.min(totalWeeks - 1, weeksBetween(chartStart, task.resolvedEnd));
+
+      if (startWeekIdx <= endWeekIdx) {
+        const startCol = META_COLS + 1 + startWeekIdx;
+        const endCol = META_COLS + 1 + endWeekIdx;
+        if (startCol < endCol) {
+          sheet.mergeCells(taskRow.number, startCol, taskRow.number, endCol);
+        }
+        const barCell = taskRow.getCell(startCol);
+        barCell.value = task.name;
+        barCell.fill = solidFill(sectionArgb);
+        barCell.font = { color: { argb: 'FFFFFFFF' }, size: 9 };
+        barCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
       }
     }
   }
