@@ -1,4 +1,4 @@
-import { format, differenceInDays } from 'date-fns';
+import { format } from 'date-fns';
 import type { BarItem } from '../../features/gantt/types';
 import type { ResolvedTask } from '../../types/gantt';
 import { LAYOUT } from '../../lib/layoutEngine';
@@ -37,8 +37,7 @@ export function Bars({ items, chartWidth, onHover, onLeave }: BarsProps) {
         const barY = by + GAP;
         const barH = BAR_HEIGHT - GAP * 2;
         const clipId = `clip-bar-${item.id}`;
-        const durationDays = differenceInDays(item.task.resolvedEnd, item.task.resolvedStart) + 1;
-        const durationLabel = `${durationDays}d`;
+        const durationLabel = `${item.task.duration}d`;
         return (
           <g key={`bar-t-${item.id}`}>
             <defs>
