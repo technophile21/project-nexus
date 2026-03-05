@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import type { BarItem } from '../../features/gantt/types';
 import type { ResolvedTask } from '../../types/gantt';
 import { LAYOUT } from '../../lib/layoutEngine';
@@ -33,11 +33,22 @@ export function Bars({ items, chartWidth, onHover, onLeave }: BarsProps) {
           );
         }
 
+        const GAP = 2; // vertical gap on each side of bar
+        const barY = by + GAP;
+        const barH = BAR_HEIGHT - GAP * 2;
+        const clipId = `clip-bar-${item.id}`;
+        const durationDays = differenceInDays(item.task.resolvedEnd, item.task.resolvedStart) + 1;
+        const durationLabel = `${durationDays}d`;
         return (
           <g key={`bar-t-${item.id}`}>
+            <defs>
+              <clipPath id={clipId}>
+                <rect x={bx} y={barY} width={bw} height={barH} />
+              </clipPath>
+            </defs>
             <line x1={0} y1={item.y + ROW_HEIGHT} x2={chartWidth} y2={item.y + ROW_HEIGHT} stroke="#1e293b" strokeWidth={1} />
             <rect
-              x={bx} y={by} width={bw} height={BAR_HEIGHT} rx={BAR_RADIUS}
+              x={bx} y={barY} width={bw} height={barH} rx={BAR_RADIUS}
               fill={fill} fillOpacity={opacity}
               style={{ cursor: 'pointer', transition: 'fill-opacity 0.12s, fill 0.12s' }}
               onMouseEnter={e => onHover(item.task, e)}
@@ -45,24 +56,27 @@ export function Bars({ items, chartWidth, onHover, onLeave }: BarsProps) {
             />
             {item.isHovered && (
               <rect
-                x={bx - 1} y={by - 1} width={bw + 2} height={BAR_HEIGHT + 2}
+                x={bx - 1} y={barY - 1} width={bw + 2} height={barH + 2}
                 rx={BAR_RADIUS + 1} fill="none"
                 stroke={fill} strokeWidth={2} strokeOpacity={0.5}
                 style={{ pointerEvents: 'none' }}
               />
             )}
-            {bw > 50 && (
-              <text x={bx + 10} y={by + BAR_HEIGHT / 2 + 4} fill="white" fontSize={11} fontWeight="500"
-                fillOpacity={opacity > 0.4 ? 0.9 : 0.4}
-                style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                {item.task.duration}d
-              </text>
-            )}
+            <text
+              clipPath={`url(#${clipId})`}
+              x={bx + 8} y={barY + barH / 2 + 4}
+              fill="white" fontSize={11} fontWeight="500"
+              fillOpacity={opacity > 0.4 ? 0.9 : 0.4}
+              style={{ pointerEvents: 'none', userSelect: 'none' }}>
+              {item.task.name}
+            </text>
             {bw > 90 && (
-              <text x={bx + bw - 8} y={by + BAR_HEIGHT / 2 + 4} fill="white" fontSize={10} textAnchor="end"
+              <text
+                clipPath={`url(#${clipId})`}
+                x={bx + bw - 8} y={barY + barH / 2 + 4} fill="white" fontSize={10} textAnchor="end"
                 fillOpacity={opacity > 0.4 ? 0.65 : 0.3}
                 style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                {format(item.task.resolvedEnd, 'MMM d')}
+                {durationLabel} · {format(item.task.resolvedEnd, 'MMM d')}
               </text>
             )}
           </g>

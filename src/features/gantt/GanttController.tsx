@@ -45,20 +45,21 @@ export function GanttController({ data }: GanttControllerProps) {
         continue;
       }
 
-      const task = row.task!;
-      const { fill, opacity } = getBarColor(task, row.sectionColor!, interaction.hoveredId, data.taskMap);
-      items.push({
-        id: task.id,
-        x: barX(task, data.chartStart),
-        y: row.y + LAYOUT.BAR_PADDING_TOP,
-        width: barWidth(task, data.chartStart),
-        height: LAYOUT.BAR_HEIGHT,
-        color: fill,
-        opacity,
-        label: task.name,
-        isHovered: task.id === interaction.hoveredId,
-        task,
-      });
+      for (const task of row.tasks!) {
+        const { fill, opacity } = getBarColor(task, row.sectionColor!, interaction.hoveredId, data.taskMap);
+        items.push({
+          id: task.id,
+          x: barX(task, data.chartStart),
+          y: row.y + LAYOUT.BAR_PADDING_TOP,
+          width: barWidth(task, data.chartStart),
+          height: LAYOUT.BAR_HEIGHT,
+          color: fill,
+          opacity,
+          label: task.name,
+          isHovered: task.id === interaction.hoveredId,
+          task,
+        });
+      }
     }
 
     return items;
