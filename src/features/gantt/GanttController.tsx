@@ -51,7 +51,7 @@ export function GanttController({ data }: GanttControllerProps) {
           id: task.id,
           x: barX(task, data.chartStart),
           y: row.y + LAYOUT.BAR_PADDING_TOP,
-          width: barWidth(task, data.chartStart),
+          width: barWidth(task),
           height: LAYOUT.BAR_HEIGHT,
           color: fill,
           opacity,
