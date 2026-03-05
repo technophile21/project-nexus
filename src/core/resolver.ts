@@ -6,7 +6,9 @@ import {
   parseDateStr,
   snapToWeekStart,
   snapToWeekEnd,
+  snapToWorkingStart,
   addDays,
+  addWorkingDays,
   weeksBetween,
 } from '../lib/dateUtils';
 
@@ -55,7 +57,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
           } else if (explicitDate.getTime() <= parent.resolvedEnd.getTime()) {
             warnings.push({ message: `Task "${raw.name}" start date ${raw.startDateStr} falls on or before dependency "${raw.dependency}" end — starting after dependency instead.` });
           } else {
-            resolvedStart = snapToWeekStart(explicitDate);
+            resolvedStart = snapToWorkingStart(explicitDate);
           }
         }
       } else {
@@ -64,7 +66,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
         if (raw.startDateStr) {
           const explicitDate = parseDateStr(raw.startDateStr);
           resolvedStart = explicitDate
-            ? snapToWeekStart(explicitDate)
+            ? snapToWorkingStart(explicitDate)
             : (prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date()));
         } else {
           resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
@@ -75,17 +77,14 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       if (!parsedDate) {
         warnings.push({ message: `Task "${raw.name}" has an invalid start date "${raw.startDateStr}" — use DD-MM-YYYY format with a valid calendar date.` });
       }
-      resolvedStart = parsedDate ? snapToWeekStart(parsedDate) : snapToWeekStart(new Date());
+      resolvedStart = parsedDate ? snapToWorkingStart(parsedDate) : snapToWeekStart(new Date());
     } else {
       // Orphan: start after previous task in section (or today if first)
       resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
     }
 
-    // Ensure resolvedStart is a Monday
-    resolvedStart = snapToWeekStart(resolvedStart);
-
-    // End = Sunday of the week containing (start + duration - 1)
-    const rawEnd = addDays(resolvedStart, raw.duration - 1);
+    // End = Sunday of the week containing the last working day of this task
+    const rawEnd = addWorkingDays(resolvedStart, raw.duration);
     const resolvedEnd = snapToWeekEnd(rawEnd);
 
     const resolved: ResolvedTask = { ...raw, id, resolvedStart, resolvedEnd };

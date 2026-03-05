@@ -1,5 +1,4 @@
 import type { ResolvedTask, Section } from '../types/gantt';
-import { weeksBetween } from './dateUtils';
 
 // ── Layout constants ───────────────────────────────────────────────────
 export const LAYOUT = {
@@ -18,16 +17,38 @@ export const LAYOUT = {
 
 // ── Row info ───────────────────────────────────────────────────────────
 export interface RowInfo {
-  type: 'section' | 'task';
+  type: 'section' | 'lane';
   sectionIdx: number;
-  taskIdx?: number;
+  laneIdx?: number;
   y: number;
-  task?: ResolvedTask;
+  tasks?: ResolvedTask[];
   sectionName?: string;
   sectionColor?: string;
 }
 
-/** Build the flat list of rows (section headers + task rows) with y positions. */
+/** Assign tasks to lanes so non-overlapping tasks share a row. */
+function assignLanes(tasks: ResolvedTask[]): ResolvedTask[][] {
+  const sorted = [...tasks].sort(
+    (a, b) => a.resolvedStart.getTime() - b.resolvedStart.getTime()
+  );
+  const lanes: ResolvedTask[][] = [];
+  const laneEnd: Date[] = [];
+  for (const task of sorted) {
+    let placed = false;
+    for (let i = 0; i < lanes.length; i++) {
+      if (laneEnd[i].getTime() < task.resolvedStart.getTime()) {
+        lanes[i].push(task);
+        laneEnd[i] = task.resolvedEnd;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) { lanes.push([task]); laneEnd.push(task.resolvedEnd); }
+  }
+  return lanes;
+}
+
+/** Build the flat list of rows (section headers + lane rows) with y positions. */
 export function buildRows(sections: Section[], startY: number): { rows: RowInfo[]; totalHeight: number } {
   let totalHeight = startY;
   const rows: RowInfo[] = [];
@@ -43,13 +64,14 @@ export function buildRows(sections: Section[], startY: number): { rows: RowInfo[
     });
     totalHeight += LAYOUT.SECTION_HEADER_HEIGHT;
 
-    for (let ti = 0; ti < section.tasks.length; ti++) {
+    const lanes = assignLanes(section.tasks);
+    for (let li = 0; li < lanes.length; li++) {
       rows.push({
-        type: 'task',
+        type: 'lane',
         sectionIdx: si,
-        taskIdx: ti,
+        laneIdx: li,
         y: totalHeight,
-        task: section.tasks[ti],
+        tasks: lanes[li],
         sectionColor: section.color,
       });
       totalHeight += LAYOUT.ROW_HEIGHT;
@@ -63,21 +85,27 @@ export function buildRows(sections: Section[], startY: number): { rows: RowInfo[
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** Convert a date to an x pixel position relative to chart start. */
+/** Number of calendar days between two dates (UTC-based, DST-safe). */
+function daysBetween(start: Date, end: Date): number {
+  const s = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const e = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return (e - s) / MS_PER_DAY;
+}
+
+/** Convert a date to an x pixel position relative to chart start (day-precise, DST-safe). */
 export function dateToX(date: Date, chartStart: Date, weekWidth: number = LAYOUT.WEEK_WIDTH): number {
-  return ((date.getTime() - chartStart.getTime()) / MS_PER_DAY / 7) * weekWidth;
+  return (daysBetween(chartStart, date) / 7) * weekWidth;
 }
 
-/** Left edge of a task bar in pixels. */
+/** Left edge of a task bar in pixels (day-precise so mid-week starts render correctly). */
 export function barX(task: ResolvedTask, chartStart: Date, weekWidth: number = LAYOUT.WEEK_WIDTH): number {
-  return weeksBetween(chartStart, task.resolvedStart) * weekWidth;
+  return dateToX(task.resolvedStart, chartStart, weekWidth);
 }
 
-/** Width of a task bar in pixels (inclusive of start and end weeks). */
-export function barWidth(task: ResolvedTask, chartStart: Date, weekWidth: number = LAYOUT.WEEK_WIDTH): number {
-  const startCol = weeksBetween(chartStart, task.resolvedStart);
-  const endCol = weeksBetween(chartStart, task.resolvedEnd);
-  return (endCol - startCol + 1) * weekWidth;
+/** Width of a task bar in pixels (from start day to end of last day, inclusive). */
+export function barWidth(task: ResolvedTask, weekWidth: number = LAYOUT.WEEK_WIDTH): number {
+  const dayWidth = weekWidth / 7;
+  return (daysBetween(task.resolvedStart, task.resolvedEnd) + 1) * dayWidth;
 }
 
 // ── Bar color logic ────────────────────────────────────────────────────
