@@ -3,6 +3,7 @@ import { toPng } from 'html-to-image';
 import { format, addWeeks } from 'date-fns';
 import type { GanttData, ResolvedTask, Milestone } from '../types';
 import { weeksBetween, snapToWeekStart } from '../ganttUtils';
+import { exportToExcel } from '../exportToExcel';
 
 // ── Layout constants ──────────────────────────────────────────────────
 const LABEL_WIDTH = 220;
@@ -147,6 +148,17 @@ export default function GanttChart({ data }: GanttChartProps) {
     }
   }, [data]);
 
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const handleExportExcel = useCallback(async () => {
+    if (!data) return;
+    setExportingExcel(true);
+    try {
+      await exportToExcel(data);
+    } finally {
+      setExportingExcel(false);
+    }
+  }, [data]);
+
   if (!data || data.sections.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-500 bg-gray-950 h-full">
@@ -232,6 +244,16 @@ export default function GanttChart({ data }: GanttChartProps) {
             <span className="inline-block w-3 h-3 rounded-sm ml-1" style={{ backgroundColor: MILESTONE_COLOR }} />
             <span>Milestone</span>
           </div>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M8 1v9M5 7l3 3 3-3M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1" />
+            </svg>
+            {exportingExcel ? 'Exporting…' : 'Export Excel'}
+          </button>
           <button
             onClick={handleExport}
             disabled={exporting}
