@@ -18,16 +18,38 @@ export const LAYOUT = {
 
 // ── Row info ───────────────────────────────────────────────────────────
 export interface RowInfo {
-  type: 'section' | 'task';
+  type: 'section' | 'lane';
   sectionIdx: number;
-  taskIdx?: number;
+  laneIdx?: number;
   y: number;
-  task?: ResolvedTask;
+  tasks?: ResolvedTask[];
   sectionName?: string;
   sectionColor?: string;
 }
 
-/** Build the flat list of rows (section headers + task rows) with y positions. */
+/** Assign tasks to lanes so non-overlapping tasks share a row. */
+function assignLanes(tasks: ResolvedTask[]): ResolvedTask[][] {
+  const sorted = [...tasks].sort(
+    (a, b) => a.resolvedStart.getTime() - b.resolvedStart.getTime()
+  );
+  const lanes: ResolvedTask[][] = [];
+  const laneEnd: Date[] = [];
+  for (const task of sorted) {
+    let placed = false;
+    for (let i = 0; i < lanes.length; i++) {
+      if (laneEnd[i].getTime() < task.resolvedStart.getTime()) {
+        lanes[i].push(task);
+        laneEnd[i] = task.resolvedEnd;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) { lanes.push([task]); laneEnd.push(task.resolvedEnd); }
+  }
+  return lanes;
+}
+
+/** Build the flat list of rows (section headers + lane rows) with y positions. */
 export function buildRows(sections: Section[], startY: number): { rows: RowInfo[]; totalHeight: number } {
   let totalHeight = startY;
   const rows: RowInfo[] = [];
@@ -43,13 +65,14 @@ export function buildRows(sections: Section[], startY: number): { rows: RowInfo[
     });
     totalHeight += LAYOUT.SECTION_HEADER_HEIGHT;
 
-    for (let ti = 0; ti < section.tasks.length; ti++) {
+    const lanes = assignLanes(section.tasks);
+    for (let li = 0; li < lanes.length; li++) {
       rows.push({
-        type: 'task',
+        type: 'lane',
         sectionIdx: si,
-        taskIdx: ti,
+        laneIdx: li,
         y: totalHeight,
-        task: section.tasks[ti],
+        tasks: lanes[li],
         sectionColor: section.color,
       });
       totalHeight += LAYOUT.ROW_HEIGHT;

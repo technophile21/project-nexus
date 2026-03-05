@@ -24,7 +24,7 @@ export function LabelColumn({ rows, totalHeight, headerHeight, weekRowY, hovered
         <rect width={LABEL_WIDTH} height={totalHeight} fill="#0f172a" />
         <rect width={LABEL_WIDTH} height={headerHeight} fill="#1e293b" />
         <text x={14} y={weekRowY + WEEK_HEADER_HEIGHT / 2 + 5} fill="#64748b" fontSize={12} fontWeight="600">
-          Task
+          Section
         </text>
         <line x1={0} y1={headerHeight} x2={LABEL_WIDTH} y2={headerHeight} stroke="#334155" strokeWidth={1} />
 
@@ -43,24 +43,12 @@ export function LabelColumn({ rows, totalHeight, headerHeight, weekRowY, hovered
             );
           }
 
-          const task = row.task!;
-          const isHovered = task.id === hoveredId;
-          const dimmed = hoveredId !== null && !isHovered;
+          const laneHovered = hoveredId !== null && row.tasks!.some(t => t.id === hoveredId);
+          const dimmed = hoveredId !== null && !laneHovered;
           return (
-            <g key={`lbl-t-${task.id}`}>
-              <rect x={0} y={row.y} width={LABEL_WIDTH} height={ROW_HEIGHT} fill={isHovered ? '#1e293b' : 'transparent'} />
+            <g key={`lbl-l-${row.sectionIdx}-${row.laneIdx}`}>
+              <rect x={0} y={row.y} width={LABEL_WIDTH} height={ROW_HEIGHT} fill={laneHovered ? '#1e293b' : 'transparent'} fillOpacity={dimmed ? 0.4 : 1} />
               <line x1={0} y1={row.y + ROW_HEIGHT} x2={LABEL_WIDTH} y2={row.y + ROW_HEIGHT} stroke="#1e293b" strokeWidth={1} />
-              <text x={14} y={row.y + ROW_HEIGHT / 2 + 5} fill={dimmed ? '#374151' : '#d1d5db'} fontSize={12} fontWeight={isHovered ? '600' : '400'}>
-                {task.name}
-              </text>
-              {task.dependency && (
-                <circle
-                  cx={LABEL_WIDTH - 14}
-                  cy={row.y + ROW_HEIGHT / 2}
-                  r={3.5}
-                  fill={isHovered ? '#f97316' : dimmed ? '#1f2937' : '#475569'}
-                />
-              )}
             </g>
           );
         })}
