@@ -117,11 +117,18 @@ export function getBarColor(
   hoveredId: string | null,
   taskMap: Map<string, ResolvedTask>
 ): { fill: string; opacity: number } {
+  // Dependency error — always shown in red regardless of hover
+  if (task.dependencyError) return { fill: '#ef4444', opacity: 0.9 };
+
   if (hoveredId === null) return { fill: sectionColor, opacity: 0.85 };
   if (task.id === hoveredId) return { fill: sectionColor, opacity: 1 };
   const hovered = taskMap.get(hoveredId);
   if (!hovered) return { fill: sectionColor, opacity: 0.3 };
-  if (hovered.dependency === task.id) return { fill: '#f97316', opacity: 1 };
-  if (task.dependency === hoveredId) return { fill: '#22c55e', opacity: 1 };
+
+  // Orange: hovered task depends on this task (this is a parent)
+  if (hovered.dependencies.includes(task.id)) return { fill: '#f97316', opacity: 1 };
+  // Green: this task depends on hovered task (this is a child)
+  if (task.dependencies.includes(hoveredId)) return { fill: '#22c55e', opacity: 1 };
+
   return { fill: sectionColor, opacity: 0.2 };
 }

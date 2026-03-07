@@ -46,12 +46,19 @@ function getBarColor(
   hoveredId: string | null,
   taskMap: Map<string, ResolvedTask>
 ): { fill: string; opacity: number } {
+  // Dependency error — always shown in red regardless of hover
+  if (task.dependencyError) return { fill: '#ef4444', opacity: 0.9 };
+
   if (hoveredId === null) return { fill: sectionColor, opacity: 0.85 };
   if (task.id === hoveredId) return { fill: sectionColor, opacity: 1 };
   const hovered = taskMap.get(hoveredId);
   if (!hovered) return { fill: sectionColor, opacity: 0.3 };
-  if (hovered.dependency === task.id) return { fill: '#f97316', opacity: 1 };
-  if (task.dependency === hoveredId) return { fill: '#22c55e', opacity: 1 };
+
+  // Orange: hovered task depends on this task (this is a parent)
+  if (hovered.dependencies.includes(task.id)) return { fill: '#f97316', opacity: 1 };
+  // Green: this task depends on hovered task (this is a child)
+  if (task.dependencies.includes(hoveredId)) return { fill: '#22c55e', opacity: 1 };
+
   return { fill: sectionColor, opacity: 0.2 };
 }
 
@@ -567,8 +574,11 @@ export default function GanttChart({ data }: GanttChartProps) {
                     <div className="flex justify-between gap-4"><span>Start</span><span className="text-gray-200">{format(tooltip.task.resolvedStart, 'dd MMM yyyy')}</span></div>
                     <div className="flex justify-between gap-4"><span>End</span><span className="text-gray-200">{format(tooltip.task.resolvedEnd, 'dd MMM yyyy')}</span></div>
                     <div className="flex justify-between gap-4"><span>Duration</span><span className="text-gray-200">{tooltip.task.duration}d</span></div>
-                    {tooltip.task.dependency && (
-                      <div className="flex justify-between gap-4"><span>Depends on</span><span className="text-orange-400">{tooltip.task.dependency}</span></div>
+                    {tooltip.task.dependencies.length > 0 && (
+                      <div className="flex justify-between gap-4"><span>Depends on</span><span className="text-orange-400">{tooltip.task.dependencies.join(', ')}</span></div>
+                    )}
+                    {tooltip.task.dependencyError && (
+                      <div className="flex justify-between gap-4"><span className="text-red-400">Error</span><span className="text-red-300">{tooltip.task.dependencyError}</span></div>
                     )}
                     {tooltip.task.explicitId && (
                       <div className="flex justify-between gap-4"><span>ID</span><span className="text-indigo-400">{tooltip.task.explicitId}</span></div>

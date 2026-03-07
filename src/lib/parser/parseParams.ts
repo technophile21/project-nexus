@@ -7,8 +7,31 @@ const DURATION_PATTERN = /^(\d+)d$/;
 const ID_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /**
+ * Parse the space-separated IDs following the "after" keyword.
+ * Validates each token against ID_PATTERN; invalid tokens emit a warning and are skipped.
+ */
+function parseDepIds(raw: string, taskName: string, warnings: ParseWarning[]): string[] {
+  const tokens = raw.trim().split(/\s+/).filter(Boolean);
+  const valid: string[] = [];
+  for (const token of tokens) {
+    if (ID_PATTERN.test(token)) {
+      valid.push(token);
+    } else {
+      warnings.push({
+        message: `Task "${taskName}" has an invalid dependency ID "${token}" — IDs must start with a letter and contain only letters, digits, or underscores.`,
+      });
+    }
+  }
+  return valid;
+}
+
+/**
  * Pure function — parses the colon-separated parameter string of a task line.
  * Pushes warnings into the provided array; never calls console.warn.
+ *
+ * Multiple dependencies are supported via space-separated IDs after "after":
+ *   after dep1 dep2 dep3, 5d
+ *   ID, after dep1 dep2, 5d
  */
 export function parseParams(
   params: string,
@@ -17,17 +40,17 @@ export function parseParams(
 ): Omit<RawTask, 'name' | 'sectionId'> {
   const trimmed = params.trim();
 
-  // Case 1: "after <depId> [,] <N>d"  — no explicit task ID
+  // Case 1: "after <depId ...> [,] <N>d"  — no explicit task ID
   if (trimmed.toLowerCase().startsWith('after ')) {
     const rest = trimmed.slice(6).trim();
     const parts = rest.split(',').map(p => p.trim());
-    const depId = parts[0].trim();
+    const dependencies = parseDepIds(parts[0] ?? '', taskName, warnings);
     const durationStr = parts[1]?.trim() ?? '';
     const dMatch = DURATION_PATTERN.exec(durationStr);
     return {
       explicitId: null,
       startDateStr: null,
-      dependency: depId || null,
+      dependencies,
       duration: dMatch ? parseInt(dMatch[1]) : 7,
     };
   }
@@ -36,7 +59,7 @@ export function parseParams(
 
   if (parts.length === 0) {
     // No params at all — orphan with default 7d
-    return { explicitId: null, startDateStr: null, dependency: null, duration: 7 };
+    return { explicitId: null, startDateStr: null, dependencies: [], duration: 7 };
   }
 
   // Case 2: "<ID>, <DATE>, <N>d"
@@ -49,28 +72,28 @@ export function parseParams(
     return {
       explicitId: parts[0],
       startDateStr: parts[1],
-      dependency: null,
+      dependencies: [],
       duration: dMatch ? parseInt(dMatch[1]) : 7,
     };
   }
 
-  // Case 3: "<ID>, after <depId>[, <DATE>], <N>d"
+  // Case 3: "<ID>, after <depId ...>[, <DATE>], <N>d"
   // The optional <DATE> allows specifying an earliest-start constraint alongside a dependency.
   if (
     parts.length >= 2 &&
     ID_PATTERN.test(parts[0]) &&
     parts[1].toLowerCase().startsWith('after ')
   ) {
-    const depId = parts[1].slice(6).trim();
+    const dependencies = parseDepIds(parts[1].slice(6), taskName, warnings);
     let startDateStr: string | null = null;
     let durationStr: string | undefined;
 
     if (parts.length >= 4 && DATE_PATTERN.test(parts[2])) {
-      // <ID>, after <depId>, <DATE>, <Nd>
+      // <ID>, after <depIds...>, <DATE>, <Nd>
       startDateStr = parts[2];
       durationStr = parts[3];
     } else {
-      // <ID>, after <depId>, <Nd>
+      // <ID>, after <depIds...>, <Nd>
       durationStr = parts[2];
     }
 
@@ -78,7 +101,7 @@ export function parseParams(
     return {
       explicitId: parts[0],
       startDateStr,
-      dependency: depId,
+      dependencies,
       duration: dMatch ? parseInt(dMatch[1]) : 7,
     };
   }
@@ -89,7 +112,7 @@ export function parseParams(
     return {
       explicitId: parts[0],
       startDateStr: null,
-      dependency: null,
+      dependencies: [],
       duration: parseInt(dMatch[1]),
     };
   }
@@ -100,7 +123,7 @@ export function parseParams(
     return {
       explicitId: null,
       startDateStr: parts[0],
-      dependency: null,
+      dependencies: [],
       duration: dMatch ? parseInt(dMatch[1]) : 7,
     };
   }
@@ -109,10 +132,10 @@ export function parseParams(
   if (parts.length === 1) {
     const dMatch = DURATION_PATTERN.exec(parts[0]);
     if (dMatch) {
-      return { explicitId: null, startDateStr: null, dependency: null, duration: parseInt(dMatch[1]) };
+      return { explicitId: null, startDateStr: null, dependencies: [], duration: parseInt(dMatch[1]) };
     }
     if (ID_PATTERN.test(parts[0])) {
-      return { explicitId: parts[0], startDateStr: null, dependency: null, duration: 7 };
+      return { explicitId: parts[0], startDateStr: null, dependencies: [], duration: 7 };
     }
   }
 
@@ -131,5 +154,5 @@ export function parseParams(
   } else {
     warnings.push({ message: `Task "${taskName}" parameters could not be parsed — check the syntax guide.` });
   }
-  return { explicitId: null, startDateStr: null, dependency: null, duration: 7 };
+  return { explicitId: null, startDateStr: null, dependencies: [], duration: 7 };
 }

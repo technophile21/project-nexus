@@ -31,8 +31,11 @@ export function Tooltip({ tooltip }: TooltipProps) {
             <div className="flex justify-between gap-4"><span>Start</span><span className="text-gray-200">{format(tooltip.task.resolvedStart, 'dd MMM yyyy')}</span></div>
             <div className="flex justify-between gap-4"><span>End</span><span className="text-gray-200">{format(tooltip.task.resolvedEnd, 'dd MMM yyyy')}</span></div>
             <div className="flex justify-between gap-4"><span>Duration</span><span className="text-gray-200">{tooltip.task.duration}d</span></div>
-            {tooltip.task.dependency && (
-              <div className="flex justify-between gap-4"><span>Depends on</span><span className="text-orange-400">{tooltip.task.dependency}</span></div>
+            {tooltip.task.dependencies.length > 0 && (
+              <div className="flex justify-between gap-4"><span>Depends on</span><span className="text-orange-400">{tooltip.task.dependencies.join(', ')}</span></div>
+            )}
+            {tooltip.task.dependencyError && (
+              <div className="flex justify-between gap-4"><span className="text-red-400">Error</span><span className="text-red-300">{tooltip.task.dependencyError}</span></div>
             )}
             {tooltip.task.explicitId && (
               <div className="flex justify-between gap-4"><span>ID</span><span className="text-indigo-400">{tooltip.task.explicitId}</span></div>

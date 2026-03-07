@@ -39,8 +39,8 @@ export function EditorView({ value, onChange, fileName, isDirty, onOpen, onSave,
       />
       <div className="px-4 py-2 border-t border-gray-700 text-xs text-gray-500 space-y-0.5">
         <div><span className="text-indigo-400">Task :ID, DATE, Nd</span> — id, start date, duration</div>
-        <div><span className="text-indigo-400">Task :ID, after ID, Nd</span> — id, dependency, duration</div>
-        <div><span className="text-indigo-400">Task :ID, after ID, DATE, Nd</span> — dep + earliest start</div>
+        <div><span className="text-indigo-400">Task :ID, after ID1 ID2, Nd</span> — id, one or more dependencies, duration</div>
+        <div><span className="text-indigo-400">Task :ID, after ID1 ID2, DATE, Nd</span> — deps + earliest start</div>
         <div><span className="text-indigo-400">Task :ID, Nd</span> — id, duration (follows previous)</div>
       </div>
     </div>

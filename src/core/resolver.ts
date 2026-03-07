@@ -13,6 +13,42 @@ import {
 } from '../lib/dateUtils';
 
 /**
+ * Detect cycles in the dependency graph using DFS.
+ * Returns the set of task IDs that are part of a cycle.
+ */
+function detectCycles(idToRaw: Map<string, RawTask>): Set<string> {
+  const cycleIds = new Set<string>();
+  // visited: 0 = unvisited, 1 = in current path, 2 = fully visited
+  const state = new Map<string, number>();
+
+  function dfs(id: string, path: string[]): boolean {
+    const s = state.get(id) ?? 0;
+    if (s === 1) {
+      // Found a cycle — mark all IDs in the current path that form the cycle
+      const cycleStart = path.indexOf(id);
+      for (let i = cycleStart; i < path.length; i++) cycleIds.add(path[i]);
+      cycleIds.add(id);
+      return true;
+    }
+    if (s === 2) return false;
+    state.set(id, 1);
+    const raw = idToRaw.get(id);
+    if (raw) {
+      for (const depId of raw.dependencies) {
+        dfs(depId, [...path, id]);
+      }
+    }
+    state.set(id, 2);
+    return false;
+  }
+
+  for (const id of idToRaw.keys()) {
+    if (!state.get(id)) dfs(id, []);
+  }
+  return cycleIds;
+}
+
+/**
  * Pure function — resolves raw parsed data into fully-positioned GanttData.
  * Computes task start/end dates, section colors, milestone positions, quarter
  * bounds, and overall chart dimensions.
@@ -25,6 +61,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
 
   // First pass: assign IDs and collect all raw tasks
   const allRawTasks: Array<{ raw: RawTask; id: string; sectionIdx: number; taskIdx: number }> = [];
+  const idToRaw = new Map<string, RawTask>();
 
   for (let si = 0; si < parsed.sections.length; si++) {
     const section = parsed.sections[si];
@@ -32,7 +69,14 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       const raw = section.tasks[ti];
       const id = raw.explicitId ?? `_s${si}t${ti}`;
       allRawTasks.push({ raw, id, sectionIdx: si, taskIdx: ti });
+      idToRaw.set(id, raw);
     }
+  }
+
+  // Detect cycles before resolving dates
+  const cycleTaskIds = detectCycles(idToRaw);
+  if (cycleTaskIds.size > 0) {
+    warnings.push({ message: `Circular dependency detected among tasks: ${[...cycleTaskIds].join(', ')} — affected tasks are highlighted in red.` });
   }
 
   // Second pass: resolve dates in document order
@@ -41,28 +85,52 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
 
   for (const { raw, id, sectionIdx } of allRawTasks) {
     let resolvedStart: Date;
+    let dependencyError: string | null = null;
     const prevEnd = prevEndBySectionIdx.get(sectionIdx) ?? null;
 
-    if (raw.dependency) {
-      const parent = taskMap.get(raw.dependency);
-      if (parent) {
-        // Default: start the Monday after the dependency ends (resolvedEnd is always a Sunday)
-        resolvedStart = addDays(parent.resolvedEnd, 1);
+    if (cycleTaskIds.has(id)) {
+      dependencyError = 'Circular dependency detected';
+    }
+
+    if (raw.dependencies.length > 0) {
+      const missingIds: string[] = [];
+      let latestParentEnd: Date | null = null;
+
+      for (const depId of raw.dependencies) {
+        const parent = taskMap.get(depId);
+        if (parent) {
+          if (!latestParentEnd || parent.resolvedEnd > latestParentEnd) {
+            latestParentEnd = parent.resolvedEnd;
+          }
+        } else if (!cycleTaskIds.has(id)) {
+          // Only report missing if not already flagged as a cycle member
+          missingIds.push(depId);
+        }
+      }
+
+      if (missingIds.length > 0) {
+        const msg = `Unknown ${missingIds.length === 1 ? 'dependency' : 'dependencies'}: ${missingIds.join(', ')}`;
+        warnings.push({ message: `Task "${raw.name}" — ${msg} — check for typos or forward references.` });
+        if (!dependencyError) dependencyError = msg;
+      }
+
+      if (latestParentEnd) {
+        // Default: start the Monday after the latest dependency ends (resolvedEnd is always a Sunday)
+        resolvedStart = addDays(latestParentEnd, 1);
 
         // If an explicit start date is also provided, validate it
         if (raw.startDateStr) {
           const explicitDate = parseDateStr(raw.startDateStr);
           if (!explicitDate) {
             warnings.push({ message: `Task "${raw.name}" has an invalid start date "${raw.startDateStr}" — use DD-MM-YYYY format with a valid calendar date.` });
-          } else if (explicitDate.getTime() <= parent.resolvedEnd.getTime()) {
-            warnings.push({ message: `Task "${raw.name}" start date ${raw.startDateStr} falls on or before dependency "${raw.dependency}" end — starting after dependency instead.` });
+          } else if (explicitDate.getTime() <= latestParentEnd.getTime()) {
+            warnings.push({ message: `Task "${raw.name}" start date ${raw.startDateStr} falls on or before the latest dependency end — starting after dependency instead.` });
           } else {
             resolvedStart = snapToWorkingStart(explicitDate);
           }
         }
       } else {
-        // Dependency not yet resolved (forward reference or typo)
-        warnings.push({ message: `Task "${raw.name}" depends on "${raw.dependency}" which was not found — check for typos.` });
+        // All deps missing or cycle — fall back to section sequencing
         if (raw.startDateStr) {
           const explicitDate = parseDateStr(raw.startDateStr);
           resolvedStart = explicitDate
@@ -87,7 +155,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
     const rawEnd = addWorkingDays(resolvedStart, raw.duration);
     const resolvedEnd = snapToWeekEnd(rawEnd);
 
-    const resolved: ResolvedTask = { ...raw, id, resolvedStart, resolvedEnd };
+    const resolved: ResolvedTask = { ...raw, id, resolvedStart, resolvedEnd, dependencyError };
     taskMap.set(id, resolved);
     prevEndBySectionIdx.set(sectionIdx, resolvedEnd);
   }
