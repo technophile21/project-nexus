@@ -1,0 +1,17 @@
+# .cursor/rules
+
+## Shell command restrictions
+- Never run rm -rf, sudo, curl, wget, or ssh commands without explicit confirmation
+- Never run git push --force
+- Never install packages (npm install, pip install) without showing me the list first
+- Never modify dotfiles or files outside the current project directory
+
+## File access restrictions  
+- Do not read or modify .env, .env.*, or any file in secrets/
+- Do not access ~/.ssh, ~/.zshrc, ~/.zprofile, or ~/.zsh_history
+- Do not write to paths outside the current working directory
+
+## Agent behaviour
+- Always propose a plan and wait for my approval before multi-file edits
+- Prefer minimal diffs — do not refactor unrelated code
+- If a command might be destructive, ask before running it

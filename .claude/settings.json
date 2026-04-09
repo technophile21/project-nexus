@@ -1,0 +1,30 @@
+{
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm install -D vite-plugin-terminal)",
+      "Bash(git add -A)",
+      "Bash(git commit:*)",
+      "Bash(npm run electron:compile)",
+      "Bash(npm run build)",
+      "Bash(git -C /Users/singhalmanik/code/project-nexus diff main...HEAD --stat)",
+      "Bash(git -C /Users/singhalmanik/code/project-nexus log main..HEAD --oneline)",
+      "Bash(git -C /Users/singhalmanik/code/project-nexus status)",
+      "Bash(git -C /Users/singhalmanik/code/project-nexus diff --stat HEAD)"
+    ],
+    "deny": [
+      "Bash(rm -rf*)",
+      "Bash(curl*)",
+      "Bash(wget*)",
+      "Bash(sudo*)",
+      "Bash(ssh*)",
+      "Bash(git push --force*)"
+    ]
+  }
+}
