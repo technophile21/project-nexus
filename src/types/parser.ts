@@ -7,6 +7,7 @@ export interface ParseWarning {
 
 export interface ParsedSection {
   name: string;
+  capacity: number; // 0–100, default 100
   tasks: RawTask[];
 }
 

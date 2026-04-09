@@ -38,6 +38,19 @@ export function LabelColumn({ rows, totalHeight, headerHeight, weekRowY, hovered
                 <text x={14} y={row.y + SECTION_HEADER_HEIGHT / 2 + 5} fill={color} fontSize={12} fontWeight="700" letterSpacing="0.4">
                   {row.sectionName}
                 </text>
+                {row.sectionCapacity !== undefined && row.sectionCapacity < 100 && (
+                  <text
+                    x={LABEL_WIDTH - 10}
+                    y={row.y + SECTION_HEADER_HEIGHT / 2 + 5}
+                    fill={row.sectionCapacity === 0 ? '#ef4444' : color}
+                    fontSize={10}
+                    fontWeight="600"
+                    textAnchor="end"
+                    fillOpacity={0.75}
+                    style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    {row.sectionCapacity}%
+                  </text>
+                )}
                 <line x1={0} y1={row.y + SECTION_HEADER_HEIGHT} x2={LABEL_WIDTH} y2={row.y + SECTION_HEADER_HEIGHT} stroke="#1e293b" strokeWidth={1} />
               </g>
             );

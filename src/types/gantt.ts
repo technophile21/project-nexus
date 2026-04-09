@@ -20,6 +20,7 @@ export interface Section {
   id: string;
   name: string;
   color: string;
+  capacity: number; // 0–100, default 100
   tasks: ResolvedTask[];
 }
 

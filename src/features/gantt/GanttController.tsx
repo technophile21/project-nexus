@@ -46,6 +46,9 @@ export function GanttController({ data }: GanttControllerProps) {
       }
 
       for (const task of row.tasks!) {
+        // 0% capacity section: no bar drawn
+        if ((data.sections[row.sectionIdx]?.capacity ?? 100) === 0) continue;
+
         const { fill, opacity } = getBarColor(task, row.sectionColor!, interaction.hoveredId, data.taskMap);
         items.push({
           id: task.id,

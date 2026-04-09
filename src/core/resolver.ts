@@ -151,8 +151,15 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
     }
 
+    // Scale duration by section capacity: a 50% section doubles the calendar span.
+    // 0% capacity uses 1 day so sequencing still works; bar is suppressed in the view.
+    const sectionCapacity = parsed.sections[sectionIdx]?.capacity ?? 100;
+    const effectiveDuration = sectionCapacity > 0
+      ? Math.ceil(raw.duration / (sectionCapacity / 100))
+      : 1;
+
     // End = Sunday of the week containing the last working day of this task
-    const rawEnd = addWorkingDays(resolvedStart, raw.duration);
+    const rawEnd = addWorkingDays(resolvedStart, effectiveDuration);
     const resolvedEnd = snapToWeekEnd(rawEnd);
 
     const resolved: ResolvedTask = { ...raw, id, resolvedStart, resolvedEnd, dependencyError };
@@ -173,7 +180,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       if (resolved) resolvedTasks.push(resolved);
     }
 
-    resolvedSections.push({ id: `s${si}`, name: section.name, color, tasks: resolvedTasks });
+    resolvedSections.push({ id: `s${si}`, name: section.name, color, capacity: section.capacity, tasks: resolvedTasks });
   }
 
   // Resolve milestones

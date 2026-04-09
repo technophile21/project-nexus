@@ -24,6 +24,7 @@ export interface RowInfo {
   tasks?: ResolvedTask[];
   sectionName?: string;
   sectionColor?: string;
+  sectionCapacity?: number;
 }
 
 /** Assign tasks to lanes so non-overlapping tasks share a row. */
@@ -61,6 +62,7 @@ export function buildRows(sections: Section[], startY: number): { rows: RowInfo[
       y: totalHeight,
       sectionName: section.name,
       sectionColor: section.color,
+      sectionCapacity: section.capacity,
     });
     totalHeight += LAYOUT.SECTION_HEADER_HEIGHT;
 

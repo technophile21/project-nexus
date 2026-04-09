@@ -78,10 +78,23 @@ export function parseGanttText(text: string): ParseResult {
       continue;
     }
 
-    // section
+    // section  "section <name> [N%]"  (capacity is optional, defaults to 100)
     if (line.toLowerCase().startsWith('section ')) {
-      const name = line.slice(8).trim();
-      currentSection = { name, tasks: [] };
+      const rest = line.slice(8).trim();
+      let sectionName = rest;
+      let capacity = 100;
+      const capacityMatch = rest.match(/\[(\d+(?:\.\d+)?)%\]\s*$/);
+      if (capacityMatch) {
+        const pct = parseFloat(capacityMatch[1]);
+        const rawName = rest.slice(0, capacityMatch.index!).trim();
+        if (pct < 0 || pct > 100) {
+          warnings.push({ message: `Section "${rawName}" capacity ${pct}% is out of range — must be between 0 and 100.` });
+        } else {
+          capacity = pct;
+          sectionName = rawName;
+        }
+      }
+      currentSection = { name: sectionName, capacity, tasks: [] };
       sections.push(currentSection);
       sectionIndex++;
       continue;
@@ -97,7 +110,7 @@ export function parseGanttText(text: string): ParseResult {
     const params = line.slice(colonIdx + 1);
 
     if (!currentSection) {
-      currentSection = { name: 'Tasks', tasks: [] };
+      currentSection = { name: 'Tasks', capacity: 100, tasks: [] };
       sections.push(currentSection);
       sectionIndex++;
     }
