@@ -153,7 +153,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
 
     // Scale duration by section capacity and task bandwidth (both are multiplicative).
     // 0 combined factor uses 1 day so sequencing still works; bar is suppressed in the view.
-    const sectionCapacity = parsed.sections[sectionIdx]?.capacity ?? 100;
+    const sectionCapacity = parsed.sections[sectionIdx]?.capacity ?? parsed.defaultCapacity;
     const taskBandwidth = raw.bandwidth ?? 100;
     const combinedFactor = (sectionCapacity / 100) * (taskBandwidth / 100);
     const effectiveDuration = combinedFactor > 0
@@ -182,7 +182,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       if (resolved) resolvedTasks.push(resolved);
     }
 
-    resolvedSections.push({ id: `s${si}`, name: section.name, color, capacity: section.capacity, tasks: resolvedTasks });
+    resolvedSections.push({ id: `s${si}`, name: section.name, color, capacity: section.capacity ?? parsed.defaultCapacity, tasks: resolvedTasks });
   }
 
   // Resolve milestones

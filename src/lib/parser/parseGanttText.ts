@@ -12,6 +12,7 @@ const ID_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 export function parseGanttText(text: string): ParseResult {
   const lines = text.split('\n');
   let title = 'Gantt Chart';
+  let defaultCapacity = 100;
   const sections: ParseResult['sections'] = [];
   const milestones: ParseResult['milestones'] = [];
   const quarters: ParseResult['quarters'] = [];
@@ -31,6 +32,23 @@ export function parseGanttText(text: string): ParseResult {
 
     // dateFormat — accepted but not used
     if (line.toLowerCase().startsWith('dateformat ')) {
+      continue;
+    }
+
+    // defaultAvailability N%  — global default capacity applied to all sections without an explicit [N%]
+    if (line.toLowerCase().startsWith('defaultavailability ')) {
+      const rest = line.slice(20).trim();
+      const match = rest.match(/^(\d+(?:\.\d+)?)%$/);
+      if (!match) {
+        warnings.push({ message: `Invalid defaultAvailability format "${rest}" — expected: defaultAvailability N% (e.g., defaultAvailability 50%)` });
+      } else {
+        const pct = parseFloat(match[1]);
+        if (pct < 0 || pct > 100) {
+          warnings.push({ message: `defaultAvailability ${pct}% is out of range — must be between 0 and 100.` });
+        } else {
+          defaultCapacity = pct;
+        }
+      }
       continue;
     }
 
@@ -78,11 +96,11 @@ export function parseGanttText(text: string): ParseResult {
       continue;
     }
 
-    // section  "section <name> [N%]"  (capacity is optional, defaults to 100)
+    // section  "section <name> [N%]"  (capacity is optional; null = inherit global defaultCapacity)
     if (line.toLowerCase().startsWith('section ')) {
       const rest = line.slice(8).trim();
       let sectionName = rest;
-      let capacity = 100;
+      let capacity: number | null = null;
       const capacityMatch = rest.match(/\[(\d+(?:\.\d+)?)%\]\s*$/);
       if (capacityMatch) {
         const pct = parseFloat(capacityMatch[1]);
@@ -125,7 +143,7 @@ export function parseGanttText(text: string): ParseResult {
     const params = line.slice(colonIdx + 1);
 
     if (!currentSection) {
-      currentSection = { name: 'Tasks', capacity: 100, tasks: [] };
+      currentSection = { name: 'Tasks', capacity: null, tasks: [] };
       sections.push(currentSection);
       sectionIndex++;
     }
@@ -146,5 +164,5 @@ export function parseGanttText(text: string): ParseResult {
     });
   }
 
-  return { title, sections, milestones, quarters, warnings };
+  return { title, defaultCapacity, sections, milestones, quarters, warnings };
 }

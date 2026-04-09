@@ -7,7 +7,7 @@ export interface ParseWarning {
 
 export interface ParsedSection {
   name: string;
-  capacity: number; // 0–100, default 100
+  capacity: number | null; // 0–100 if explicitly set; null = inherit defaultCapacity
   tasks: RawTask[];
 }
 
@@ -25,6 +25,7 @@ export interface ParsedQuarter {
 
 export interface ParseResult {
   title: string;
+  defaultCapacity: number; // 0–100, set via "availability N%" directive, default 100
   sections: ParsedSection[];
   milestones: ParsedMilestone[];
   quarters: ParsedQuarter[];
