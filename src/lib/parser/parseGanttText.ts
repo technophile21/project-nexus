@@ -1,4 +1,4 @@
-import type { ParseResult, ParseWarning } from '../../types/parser';
+import type { ParseResult, ParseWarning, ParsedHoliday } from '../../types/parser';
 import { parseParams } from './parseParams';
 
 const DATE_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
@@ -14,6 +14,7 @@ export function parseGanttText(text: string): ParseResult {
   let title = 'Gantt Chart';
   let defaultCapacity = 100;
   let workingPeriod: ParseResult['workingPeriod'] = null;
+  const holidays: ParsedHoliday[] = [];
   const sections: ParseResult['sections'] = [];
   const milestones: ParseResult['milestones'] = [];
   const quarters: ParseResult['quarters'] = [];
@@ -70,6 +71,25 @@ export function parseGanttText(text: string): ParseResult {
           }
         } else {
           warnings.push({ message: `workingPeriod requires both a start and end date — expected: workingPeriod :DD-MM-YYYY, DD-MM-YYYY` });
+        }
+      }
+      continue;
+    }
+
+    // holidays  "holidays :DD-MM-YYYY, DD-MM-YYYY, ..."
+    if (line.toLowerCase().startsWith('holidays ')) {
+      const rest = line.slice(9).trim();
+      const ci = rest.indexOf(':');
+      if (ci === -1) {
+        warnings.push({ message: `holidays definition is missing a ":" separator — expected: holidays :DD-MM-YYYY, DD-MM-YYYY, ...` });
+      } else {
+        const dateParts = rest.slice(ci + 1).split(',').map(p => p.trim()).filter(p => p.length > 0);
+        for (const dateStr of dateParts) {
+          if (!DATE_PATTERN.test(dateStr)) {
+            warnings.push({ message: `holidays has an invalid date "${dateStr}" — use DD-MM-YYYY.` });
+          } else {
+            holidays.push({ dateStr });
+          }
         }
       }
       continue;
@@ -187,5 +207,5 @@ export function parseGanttText(text: string): ParseResult {
     });
   }
 
-  return { title, defaultCapacity, workingPeriod, sections, milestones, quarters, warnings };
+  return { title, defaultCapacity, workingPeriod, sections, holidays, milestones, quarters, warnings };
 }

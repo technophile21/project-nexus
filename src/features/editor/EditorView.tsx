@@ -123,6 +123,7 @@ export function EditorView({ value, onChange, fileName, isDirty, onOpen, onSave,
               <div><span className="text-indigo-400">dateFormat</span> DD-MM-YYYY</div>
               <div><span className="text-indigo-400">defaultAvailability</span> 80% — default capacity for all sections</div>
               <div><span className="text-indigo-400">workingPeriod</span> :DD-MM-YYYY, DD-MM-YYYY — capacity planning window</div>
+              <div><span className="text-indigo-400">holidays</span> :DD-MM-YYYY, DD-MM-YYYY, ... — excluded from working days</div>
             </div>
 
             <div className="space-y-0.5">

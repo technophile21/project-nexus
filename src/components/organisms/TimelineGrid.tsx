@@ -12,6 +12,7 @@ interface TimelineGridProps {
   weekRowY: number;
   quarters: Quarter[];
   workingPeriod?: { startDate: Date; endDate: Date } | null;
+  holidays?: { name: string | null; date: Date }[];
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -25,6 +26,7 @@ export function TimelineGrid({
   weekRowY,
   quarters,
   workingPeriod,
+  holidays,
 }: TimelineGridProps) {
   const { WEEK_WIDTH, WEEK_HEADER_HEIGHT } = LAYOUT;
 
@@ -43,6 +45,21 @@ export function TimelineGrid({
           </g>
         );
       })()}
+
+      {/* Holiday day stripes */}
+      {holidays?.map((h, hi) => {
+        const hx = dateToX(h.date, chartStart);
+        const dayW = WEEK_WIDTH / 7;
+        if (hx + dayW < 0 || hx > chartWidth) return null;
+        return (
+          <rect
+            key={`holiday-${hi}`}
+            x={hx} y={headerHeight}
+            width={dayW} height={totalHeight - headerHeight}
+            fill="#f87171" fillOpacity={0.18}
+          />
+        );
+      })}
 
       {/* Quarter body bands (render first, behind everything) */}
       {quarters.map((q, qi) => {

@@ -2,6 +2,7 @@ export const DEFAULT_TEXT = `title Product Launch — 2026
 dateFormat DD-MM-YYYY
 defaultAvailability 80%
 workingPeriod :05-01-2026, 27-03-2026
+holidays :26-01-2026, 20-03-2026
 
 quarter Q1 :01-01-2026, 31-03-2026
 quarter Q2 :01-04-2026, 30-06-2026

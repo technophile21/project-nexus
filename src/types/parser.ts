@@ -11,6 +11,10 @@ export interface ParsedSection {
   tasks: RawTask[];
 }
 
+export interface ParsedHoliday {
+  dateStr: string;
+}
+
 export interface ParsedMilestone {
   name: string;
   explicitId: string | null;
@@ -28,6 +32,7 @@ export interface ParseResult {
   defaultCapacity: number; // 0–100, set via "availability N%" directive, default 100
   workingPeriod: { startDateStr: string; endDateStr: string } | null;
   sections: ParsedSection[];
+  holidays: ParsedHoliday[];
   milestones: ParsedMilestone[];
   quarters: ParsedQuarter[];
   warnings: ParseWarning[];
