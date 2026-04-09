@@ -104,8 +104,23 @@ export function parseGanttText(text: string): ParseResult {
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
 
-    const taskName = line.slice(0, colonIdx).trim();
-    if (!taskName) continue;
+    const rawTaskName = line.slice(0, colonIdx).trim();
+    if (!rawTaskName) continue;
+
+    let taskName = rawTaskName;
+    let bandwidth = 100;
+    const bandwidthMatch = rawTaskName.match(/\[(\d+(?:\.\d+)?)%\]\s*$/);
+    if (bandwidthMatch) {
+      const pct = parseFloat(bandwidthMatch[1]);
+      const strippedName = rawTaskName.slice(0, bandwidthMatch.index!).trim();
+      if (pct < 0 || pct > 100) {
+        warnings.push({ message: `Task "${strippedName}" bandwidth ${pct}% is out of range — must be between 0 and 100.` });
+        taskName = strippedName;
+      } else {
+        bandwidth = pct;
+        taskName = strippedName;
+      }
+    }
 
     const params = line.slice(colonIdx + 1);
 
@@ -125,6 +140,7 @@ export function parseGanttText(text: string): ParseResult {
 
     currentSection.tasks.push({
       name: taskName,
+      bandwidth,
       sectionId,
       ...taskFields,
     });

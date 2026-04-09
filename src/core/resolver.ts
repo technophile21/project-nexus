@@ -151,11 +151,13 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
     }
 
-    // Scale duration by section capacity: a 50% section doubles the calendar span.
-    // 0% capacity uses 1 day so sequencing still works; bar is suppressed in the view.
+    // Scale duration by section capacity and task bandwidth (both are multiplicative).
+    // 0 combined factor uses 1 day so sequencing still works; bar is suppressed in the view.
     const sectionCapacity = parsed.sections[sectionIdx]?.capacity ?? 100;
-    const effectiveDuration = sectionCapacity > 0
-      ? Math.ceil(raw.duration / (sectionCapacity / 100))
+    const taskBandwidth = raw.bandwidth ?? 100;
+    const combinedFactor = (sectionCapacity / 100) * (taskBandwidth / 100);
+    const effectiveDuration = combinedFactor > 0
+      ? Math.ceil(raw.duration / combinedFactor)
       : 1;
 
     // End = Sunday of the week containing the last working day of this task

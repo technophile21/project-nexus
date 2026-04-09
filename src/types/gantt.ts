@@ -6,6 +6,7 @@ export interface RawTask {
   startDateStr: string | null;
   dependencies: string[];
   duration: number; // days
+  bandwidth: number; // 0–100, default 100
   sectionId: string;
 }
 
