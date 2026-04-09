@@ -21,7 +21,7 @@ export function Tooltip({ tooltip }: TooltipProps) {
 
   return (
     <div
-      className="absolute z-10 pointer-events-none bg-gray-800 border border-gray-700 rounded-lg shadow-xl px-3 py-2.5 text-xs"
+      className="fixed z-50 pointer-events-none bg-gray-800 border border-gray-700 rounded-lg shadow-xl px-3 py-2.5 text-xs"
       style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)', minWidth: '190px' }}
     >
       {tooltip.type === 'task' && tooltip.task && (

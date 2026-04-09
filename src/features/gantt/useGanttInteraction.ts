@@ -16,15 +16,12 @@ export function useGanttInteraction(scrollRef: React.RefObject<HTMLDivElement>) 
     (task: ResolvedTask, e: React.MouseEvent<SVGRectElement>) => {
       setHoveredId(task.id);
       const rect = (e.currentTarget as SVGRectElement).getBoundingClientRect();
-      const containerRect = scrollRef.current?.getBoundingClientRect();
-      if (containerRect) {
-        setTooltip({
-          type: 'task',
-          task,
-          x: rect.left - containerRect.left + rect.width / 2,
-          y: rect.top - containerRect.top - 8,
-        });
-      }
+      setTooltip({
+        type: 'task',
+        task,
+        x: rect.left + rect.width / 2,
+        y: rect.top - 8,
+      });
     },
     [scrollRef]
   );
@@ -37,15 +34,12 @@ export function useGanttInteraction(scrollRef: React.RefObject<HTMLDivElement>) 
   const handleMilestoneEnter = useCallback(
     (ms: Milestone, e: React.MouseEvent<SVGElement>) => {
       const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
-      const containerRect = scrollRef.current?.getBoundingClientRect();
-      if (containerRect) {
-        setTooltip({
-          type: 'milestone',
-          milestone: ms,
-          x: rect.left - containerRect.left + rect.width / 2,
-          y: rect.top - containerRect.top - 8,
-        });
-      }
+      setTooltip({
+        type: 'milestone',
+        milestone: ms,
+        x: rect.left + rect.width / 2,
+        y: rect.top - 8,
+      });
     },
     [scrollRef]
   );
