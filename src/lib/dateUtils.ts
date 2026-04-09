@@ -58,6 +58,21 @@ export function snapToWorkingStart(date: Date): Date {
   return d;
 }
 
+// Count Mon–Fri working days from start to end, inclusive.
+export function countWorkingDays(start: Date, end: Date): number {
+  let count = 0;
+  const d = new Date(start);
+  d.setHours(0, 0, 0, 0);
+  const e = new Date(end);
+  e.setHours(0, 0, 0, 0);
+  while (d.getTime() <= e.getTime()) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
 // Returns the date of the nth working day counting from `date` as day 1.
 // Skips Saturday and Sunday. duration=1 returns date itself, duration=5 from
 // Monday returns Friday.

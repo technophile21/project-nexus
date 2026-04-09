@@ -13,6 +13,7 @@ export function parseGanttText(text: string): ParseResult {
   const lines = text.split('\n');
   let title = 'Gantt Chart';
   let defaultCapacity = 100;
+  let workingPeriod: ParseResult['workingPeriod'] = null;
   const sections: ParseResult['sections'] = [];
   const milestones: ParseResult['milestones'] = [];
   const quarters: ParseResult['quarters'] = [];
@@ -47,6 +48,28 @@ export function parseGanttText(text: string): ParseResult {
           warnings.push({ message: `defaultAvailability ${pct}% is out of range — must be between 0 and 100.` });
         } else {
           defaultCapacity = pct;
+        }
+      }
+      continue;
+    }
+
+    // workingPeriod  "workingPeriod :<startDate>, <endDate>"
+    if (line.toLowerCase().startsWith('workingperiod ')) {
+      const rest = line.slice(14).trim();
+      const ci = rest.indexOf(':');
+      if (ci === -1) {
+        warnings.push({ message: `workingPeriod definition is missing a ":" separator — expected: workingPeriod :DD-MM-YYYY, DD-MM-YYYY` });
+      } else {
+        const parts = rest.slice(ci + 1).split(',').map(p => p.trim());
+        if (parts.length >= 2) {
+          const [startStr, endStr] = [parts[0], parts[1]];
+          if (!DATE_PATTERN.test(startStr) || !DATE_PATTERN.test(endStr)) {
+            warnings.push({ message: `workingPeriod has an invalid date format — use DD-MM-YYYY.` });
+          } else {
+            workingPeriod = { startDateStr: startStr, endDateStr: endStr };
+          }
+        } else {
+          warnings.push({ message: `workingPeriod requires both a start and end date — expected: workingPeriod :DD-MM-YYYY, DD-MM-YYYY` });
         }
       }
       continue;
@@ -164,5 +187,5 @@ export function parseGanttText(text: string): ParseResult {
     });
   }
 
-  return { title, defaultCapacity, sections, milestones, quarters, warnings };
+  return { title, defaultCapacity, workingPeriod, sections, milestones, quarters, warnings };
 }

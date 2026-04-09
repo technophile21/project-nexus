@@ -11,6 +11,7 @@ interface TimelineGridProps {
   headerHeight: number;
   weekRowY: number;
   quarters: Quarter[];
+  workingPeriod?: { startDate: Date; endDate: Date } | null;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -23,11 +24,26 @@ export function TimelineGrid({
   headerHeight,
   weekRowY,
   quarters,
+  workingPeriod,
 }: TimelineGridProps) {
   const { WEEK_WIDTH, WEEK_HEADER_HEIGHT } = LAYOUT;
 
   return (
     <>
+      {/* Working period band (behind quarter bands) */}
+      {workingPeriod && (() => {
+        const px1 = Math.max(0, dateToX(workingPeriod.startDate, chartStart));
+        const px2 = Math.min(chartWidth, dateToX(new Date(workingPeriod.endDate.getTime() + MS_PER_DAY), chartStart));
+        if (px2 <= 0 || px1 >= chartWidth) return null;
+        return (
+          <g key="working-period">
+            <rect x={px1} y={headerHeight} width={px2 - px1} height={totalHeight - headerHeight} fill="#818cf8" fillOpacity={0.07} />
+            <line x1={px1} y1={headerHeight} x2={px1} y2={totalHeight} stroke="#818cf8" strokeWidth={1.5} strokeOpacity={0.5} strokeDasharray="4 3" />
+            <line x1={px2} y1={headerHeight} x2={px2} y2={totalHeight} stroke="#818cf8" strokeWidth={1.5} strokeOpacity={0.5} strokeDasharray="4 3" />
+          </g>
+        );
+      })()}
+
       {/* Quarter body bands (render first, behind everything) */}
       {quarters.map((q, qi) => {
         const qx1 = Math.max(0, dateToX(q.startDate, chartStart));

@@ -26,6 +26,7 @@ export interface ParsedQuarter {
 export interface ParseResult {
   title: string;
   defaultCapacity: number; // 0–100, set via "availability N%" directive, default 100
+  workingPeriod: { startDateStr: string; endDateStr: string } | null;
   sections: ParsedSection[];
   milestones: ParsedMilestone[];
   quarters: ParsedQuarter[];

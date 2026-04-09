@@ -10,6 +10,7 @@ import {
   addDays,
   addWorkingDays,
   weeksBetween,
+  countWorkingDays,
 } from '../lib/dateUtils';
 
 /**
@@ -169,10 +170,23 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
     prevEndBySectionIdx.set(sectionIdx, resolvedEnd);
   }
 
-  // Build sections with resolved tasks
+  // Resolve working period once, used for per-section capacity status
+  let resolvedWorkingPeriod: GanttData['workingPeriod'] = null;
+  if (parsed.workingPeriod) {
+    const wpStart = parseDateStr(parsed.workingPeriod.startDateStr);
+    const wpEnd = parseDateStr(parsed.workingPeriod.endDateStr);
+    if (!wpStart || !wpEnd) {
+      warnings.push({ message: `Working period has invalid dates — use DD-MM-YYYY format.` });
+    } else {
+      resolvedWorkingPeriod = { startDate: wpStart, endDate: wpEnd, workingDays: countWorkingDays(wpStart, wpEnd) };
+    }
+  }
+
+  // Build sections with resolved tasks and capacity status
   for (let si = 0; si < parsed.sections.length; si++) {
     const section = parsed.sections[si];
     const color = SECTION_COLORS[si % SECTION_COLORS.length];
+    const effectiveCapacity = section.capacity ?? parsed.defaultCapacity;
     const resolvedTasks: ResolvedTask[] = [];
 
     for (let ti = 0; ti < section.tasks.length; ti++) {
@@ -182,7 +196,15 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       if (resolved) resolvedTasks.push(resolved);
     }
 
-    resolvedSections.push({ id: `s${si}`, name: section.name, color, capacity: section.capacity ?? parsed.defaultCapacity, tasks: resolvedTasks });
+    const plannedDays = section.tasks.reduce((sum, t) => sum + t.duration, 0);
+    let availableDays: number | null = null;
+    let capacityStatus: Section['capacityStatus'] = null;
+    if (resolvedWorkingPeriod && effectiveCapacity > 0) {
+      availableDays = Math.round(resolvedWorkingPeriod.workingDays * (effectiveCapacity / 100));
+      capacityStatus = plannedDays > availableDays ? 'over' : plannedDays < availableDays ? 'under' : 'balanced';
+    }
+
+    resolvedSections.push({ id: `s${si}`, name: section.name, color, capacity: effectiveCapacity, plannedDays, availableDays, capacityStatus, tasks: resolvedTasks });
   }
 
   // Resolve milestones
@@ -244,6 +266,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
   return {
     data: {
       title: parsed.title,
+      workingPeriod: resolvedWorkingPeriod,
       sections: resolvedSections,
       taskMap,
       chartStart,
