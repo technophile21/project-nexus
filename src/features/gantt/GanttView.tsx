@@ -71,6 +71,8 @@ export function GanttView({
             headerHeight={headerHeight}
             weekRowY={weekRowY}
             quarters={data.quarters}
+            workingPeriod={data.workingPeriod}
+            holidays={data.holidays}
           />
 
           {hasQuarters && (

@@ -24,6 +24,10 @@ export interface RowInfo {
   tasks?: ResolvedTask[];
   sectionName?: string;
   sectionColor?: string;
+  sectionCapacity?: number;
+  sectionCapacityStatus?: 'over' | 'under' | 'balanced' | null;
+  sectionPlannedDays?: number;
+  sectionAvailableDays?: number | null;
 }
 
 /** Assign tasks to lanes so non-overlapping tasks share a row. */
@@ -61,6 +65,10 @@ export function buildRows(sections: Section[], startY: number): { rows: RowInfo[
       y: totalHeight,
       sectionName: section.name,
       sectionColor: section.color,
+      sectionCapacity: section.capacity,
+      sectionCapacityStatus: section.capacityStatus,
+      sectionPlannedDays: section.plannedDays,
+      sectionAvailableDays: section.availableDays,
     });
     totalHeight += LAYOUT.SECTION_HEADER_HEIGHT;
 

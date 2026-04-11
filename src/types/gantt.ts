@@ -6,6 +6,7 @@ export interface RawTask {
   startDateStr: string | null;
   dependencies: string[];
   duration: number; // days
+  bandwidth: number; // 0–100, default 100
   sectionId: string;
 }
 
@@ -20,11 +21,17 @@ export interface Section {
   id: string;
   name: string;
   color: string;
+  capacity: number; // 0–100, default 100
+  plannedDays: number; // sum of raw task durations in this section
+  availableDays: number | null; // workingPeriod.workingDays × capacity/100; null if no period
+  capacityStatus: 'over' | 'under' | 'balanced' | null; // null if no period or 0% section
   tasks: ResolvedTask[];
 }
 
 export interface GanttData {
   title: string;
+  workingPeriod: { startDate: Date; endDate: Date; workingDays: number } | null;
+  holidays: { date: Date }[];
   sections: Section[];
   taskMap: Map<string, ResolvedTask>;
   chartStart: Date;

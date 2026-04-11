@@ -10,6 +10,8 @@ import {
   addDays,
   addWorkingDays,
   weeksBetween,
+  countWorkingDays,
+  toDateKey,
 } from '../lib/dateUtils';
 
 /**
@@ -79,6 +81,19 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
     warnings.push({ message: `Circular dependency detected among tasks: ${[...cycleTaskIds].join(', ')} — affected tasks are highlighted in red.` });
   }
 
+  // Resolve holidays → build a Set<string> for O(1) lookup in working-day functions
+  const resolvedHolidays: GanttData['holidays'] = [];
+  const holidaySet = new Set<string>();
+  for (const ph of parsed.holidays) {
+    const date = parseDateStr(ph.dateStr);
+    if (!date) {
+      warnings.push({ message: `holidays has an invalid date "${ph.dateStr}" — use DD-MM-YYYY format.` });
+      continue;
+    }
+    resolvedHolidays.push({ date });
+    holidaySet.add(toDateKey(date));
+  }
+
   // Second pass: resolve dates in document order
   // Track prevEnd per section for orphan tasks
   const prevEndBySectionIdx = new Map<number, Date | null>();
@@ -126,7 +141,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
           } else if (explicitDate.getTime() <= latestParentEnd.getTime()) {
             warnings.push({ message: `Task "${raw.name}" start date ${raw.startDateStr} falls on or before the latest dependency end — starting after dependency instead.` });
           } else {
-            resolvedStart = snapToWorkingStart(explicitDate);
+            resolvedStart = snapToWorkingStart(explicitDate, holidaySet);
           }
         }
       } else {
@@ -134,7 +149,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
         if (raw.startDateStr) {
           const explicitDate = parseDateStr(raw.startDateStr);
           resolvedStart = explicitDate
-            ? snapToWorkingStart(explicitDate)
+            ? snapToWorkingStart(explicitDate, holidaySet)
             : (prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date()));
         } else {
           resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
@@ -145,14 +160,26 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       if (!parsedDate) {
         warnings.push({ message: `Task "${raw.name}" has an invalid start date "${raw.startDateStr}" — use DD-MM-YYYY format with a valid calendar date.` });
       }
-      resolvedStart = parsedDate ? snapToWorkingStart(parsedDate) : snapToWeekStart(new Date());
+      resolvedStart = parsedDate ? snapToWorkingStart(parsedDate, holidaySet) : snapToWeekStart(new Date());
     } else {
       // Orphan: start after previous task in section (or today if first)
       resolvedStart = prevEnd ? addDays(prevEnd, 1) : snapToWeekStart(new Date());
     }
 
+    // Ensure resolvedStart is never a holiday (e.g. Monday inherited from a Sunday dependency end)
+    resolvedStart = snapToWorkingStart(resolvedStart, holidaySet);
+
+    // Scale duration by section capacity and task bandwidth (both are multiplicative).
+    // 0 combined factor uses 1 day so sequencing still works; bar is suppressed in the view.
+    const sectionCapacity = parsed.sections[sectionIdx]?.capacity ?? parsed.defaultCapacity;
+    const taskBandwidth = raw.bandwidth ?? 100;
+    const combinedFactor = (sectionCapacity / 100) * (taskBandwidth / 100);
+    const effectiveDuration = combinedFactor > 0
+      ? Math.ceil(raw.duration / combinedFactor)
+      : 1;
+
     // End = Sunday of the week containing the last working day of this task
-    const rawEnd = addWorkingDays(resolvedStart, raw.duration);
+    const rawEnd = addWorkingDays(resolvedStart, effectiveDuration, holidaySet);
     const resolvedEnd = snapToWeekEnd(rawEnd);
 
     const resolved: ResolvedTask = { ...raw, id, resolvedStart, resolvedEnd, dependencyError };
@@ -160,10 +187,23 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
     prevEndBySectionIdx.set(sectionIdx, resolvedEnd);
   }
 
-  // Build sections with resolved tasks
+  // Resolve working period once, used for per-section capacity status
+  let resolvedWorkingPeriod: GanttData['workingPeriod'] = null;
+  if (parsed.workingPeriod) {
+    const wpStart = parseDateStr(parsed.workingPeriod.startDateStr);
+    const wpEnd = parseDateStr(parsed.workingPeriod.endDateStr);
+    if (!wpStart || !wpEnd) {
+      warnings.push({ message: `Working period has invalid dates — use DD-MM-YYYY format.` });
+    } else {
+      resolvedWorkingPeriod = { startDate: wpStart, endDate: wpEnd, workingDays: countWorkingDays(wpStart, wpEnd, holidaySet) };
+    }
+  }
+
+  // Build sections with resolved tasks and capacity status
   for (let si = 0; si < parsed.sections.length; si++) {
     const section = parsed.sections[si];
     const color = SECTION_COLORS[si % SECTION_COLORS.length];
+    const effectiveCapacity = section.capacity ?? parsed.defaultCapacity;
     const resolvedTasks: ResolvedTask[] = [];
 
     for (let ti = 0; ti < section.tasks.length; ti++) {
@@ -173,7 +213,15 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       if (resolved) resolvedTasks.push(resolved);
     }
 
-    resolvedSections.push({ id: `s${si}`, name: section.name, color, tasks: resolvedTasks });
+    const plannedDays = section.tasks.reduce((sum, t) => sum + t.duration, 0);
+    let availableDays: number | null = null;
+    let capacityStatus: Section['capacityStatus'] = null;
+    if (resolvedWorkingPeriod && effectiveCapacity > 0) {
+      availableDays = Math.round(resolvedWorkingPeriod.workingDays * (effectiveCapacity / 100));
+      capacityStatus = plannedDays > availableDays ? 'over' : plannedDays < availableDays ? 'under' : 'balanced';
+    }
+
+    resolvedSections.push({ id: `s${si}`, name: section.name, color, capacity: effectiveCapacity, plannedDays, availableDays, capacityStatus, tasks: resolvedTasks });
   }
 
   // Resolve milestones
@@ -235,6 +283,8 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
   return {
     data: {
       title: parsed.title,
+      workingPeriod: resolvedWorkingPeriod,
+      holidays: resolvedHolidays,
       sections: resolvedSections,
       taskMap,
       chartStart,

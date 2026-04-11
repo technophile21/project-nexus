@@ -1,4 +1,4 @@
-import type { ParseResult, ParseWarning } from '../../types/parser';
+import type { ParseResult, ParseWarning, ParsedHoliday } from '../../types/parser';
 import { parseParams } from './parseParams';
 
 const DATE_PATTERN = /^\d{2}-\d{2}-\d{4}$/;
@@ -12,6 +12,9 @@ const ID_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 export function parseGanttText(text: string): ParseResult {
   const lines = text.split('\n');
   let title = 'Gantt Chart';
+  let defaultCapacity = 100;
+  let workingPeriod: ParseResult['workingPeriod'] = null;
+  const holidays: ParsedHoliday[] = [];
   const sections: ParseResult['sections'] = [];
   const milestones: ParseResult['milestones'] = [];
   const quarters: ParseResult['quarters'] = [];
@@ -31,6 +34,64 @@ export function parseGanttText(text: string): ParseResult {
 
     // dateFormat — accepted but not used
     if (line.toLowerCase().startsWith('dateformat ')) {
+      continue;
+    }
+
+    // defaultAvailability N%  — global default capacity applied to all sections without an explicit [N%]
+    if (line.toLowerCase().startsWith('defaultavailability ')) {
+      const rest = line.slice(20).trim();
+      const match = rest.match(/^(\d+(?:\.\d+)?)%$/);
+      if (!match) {
+        warnings.push({ message: `Invalid defaultAvailability format "${rest}" — expected: defaultAvailability N% (e.g., defaultAvailability 50%)` });
+      } else {
+        const pct = parseFloat(match[1]);
+        if (pct < 0 || pct > 100) {
+          warnings.push({ message: `defaultAvailability ${pct}% is out of range — must be between 0 and 100.` });
+        } else {
+          defaultCapacity = pct;
+        }
+      }
+      continue;
+    }
+
+    // workingPeriod  "workingPeriod :<startDate>, <endDate>"
+    if (line.toLowerCase().startsWith('workingperiod ')) {
+      const rest = line.slice(14).trim();
+      const ci = rest.indexOf(':');
+      if (ci === -1) {
+        warnings.push({ message: `workingPeriod definition is missing a ":" separator — expected: workingPeriod :DD-MM-YYYY, DD-MM-YYYY` });
+      } else {
+        const parts = rest.slice(ci + 1).split(',').map(p => p.trim());
+        if (parts.length >= 2) {
+          const [startStr, endStr] = [parts[0], parts[1]];
+          if (!DATE_PATTERN.test(startStr) || !DATE_PATTERN.test(endStr)) {
+            warnings.push({ message: `workingPeriod has an invalid date format — use DD-MM-YYYY.` });
+          } else {
+            workingPeriod = { startDateStr: startStr, endDateStr: endStr };
+          }
+        } else {
+          warnings.push({ message: `workingPeriod requires both a start and end date — expected: workingPeriod :DD-MM-YYYY, DD-MM-YYYY` });
+        }
+      }
+      continue;
+    }
+
+    // holidays  "holidays :DD-MM-YYYY, DD-MM-YYYY, ..."
+    if (line.toLowerCase().startsWith('holidays ')) {
+      const rest = line.slice(9).trim();
+      const ci = rest.indexOf(':');
+      if (ci === -1) {
+        warnings.push({ message: `holidays definition is missing a ":" separator — expected: holidays :DD-MM-YYYY, DD-MM-YYYY, ...` });
+      } else {
+        const dateParts = rest.slice(ci + 1).split(',').map(p => p.trim()).filter(p => p.length > 0);
+        for (const dateStr of dateParts) {
+          if (!DATE_PATTERN.test(dateStr)) {
+            warnings.push({ message: `holidays has an invalid date "${dateStr}" — use DD-MM-YYYY.` });
+          } else {
+            holidays.push({ dateStr });
+          }
+        }
+      }
       continue;
     }
 
@@ -78,10 +139,23 @@ export function parseGanttText(text: string): ParseResult {
       continue;
     }
 
-    // section
+    // section  "section <name> [N%]"  (capacity is optional; null = inherit global defaultCapacity)
     if (line.toLowerCase().startsWith('section ')) {
-      const name = line.slice(8).trim();
-      currentSection = { name, tasks: [] };
+      const rest = line.slice(8).trim();
+      let sectionName = rest;
+      let capacity: number | null = null;
+      const capacityMatch = rest.match(/\[(\d+(?:\.\d+)?)%\]\s*$/);
+      if (capacityMatch) {
+        const pct = parseFloat(capacityMatch[1]);
+        const rawName = rest.slice(0, capacityMatch.index!).trim();
+        if (pct < 0 || pct > 100) {
+          warnings.push({ message: `Section "${rawName}" capacity ${pct}% is out of range — must be between 0 and 100.` });
+        } else {
+          capacity = pct;
+          sectionName = rawName;
+        }
+      }
+      currentSection = { name: sectionName, capacity, tasks: [] };
       sections.push(currentSection);
       sectionIndex++;
       continue;
@@ -91,13 +165,28 @@ export function parseGanttText(text: string): ParseResult {
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
 
-    const taskName = line.slice(0, colonIdx).trim();
-    if (!taskName) continue;
+    const rawTaskName = line.slice(0, colonIdx).trim();
+    if (!rawTaskName) continue;
+
+    let taskName = rawTaskName;
+    let bandwidth = 100;
+    const bandwidthMatch = rawTaskName.match(/\[(\d+(?:\.\d+)?)%\]\s*$/);
+    if (bandwidthMatch) {
+      const pct = parseFloat(bandwidthMatch[1]);
+      const strippedName = rawTaskName.slice(0, bandwidthMatch.index!).trim();
+      if (pct < 0 || pct > 100) {
+        warnings.push({ message: `Task "${strippedName}" bandwidth ${pct}% is out of range — must be between 0 and 100.` });
+        taskName = strippedName;
+      } else {
+        bandwidth = pct;
+        taskName = strippedName;
+      }
+    }
 
     const params = line.slice(colonIdx + 1);
 
     if (!currentSection) {
-      currentSection = { name: 'Tasks', tasks: [] };
+      currentSection = { name: 'Tasks', capacity: null, tasks: [] };
       sections.push(currentSection);
       sectionIndex++;
     }
@@ -112,10 +201,11 @@ export function parseGanttText(text: string): ParseResult {
 
     currentSection.tasks.push({
       name: taskName,
+      bandwidth,
       sectionId,
       ...taskFields,
     });
   }
 
-  return { title, sections, milestones, quarters, warnings };
+  return { title, defaultCapacity, workingPeriod, sections, holidays, milestones, quarters, warnings };
 }

@@ -7,7 +7,12 @@ export interface ParseWarning {
 
 export interface ParsedSection {
   name: string;
+  capacity: number | null; // 0–100 if explicitly set; null = inherit defaultCapacity
   tasks: RawTask[];
+}
+
+export interface ParsedHoliday {
+  dateStr: string;
 }
 
 export interface ParsedMilestone {
@@ -24,7 +29,10 @@ export interface ParsedQuarter {
 
 export interface ParseResult {
   title: string;
+  defaultCapacity: number; // 0–100, set via "availability N%" directive, default 100
+  workingPeriod: { startDateStr: string; endDateStr: string } | null;
   sections: ParsedSection[];
+  holidays: ParsedHoliday[];
   milestones: ParsedMilestone[];
   quarters: ParsedQuarter[];
   warnings: ParseWarning[];

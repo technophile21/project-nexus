@@ -6,22 +6,7 @@ import { useGanttData } from '../hooks/useGanttData';
 import { useWarnings } from '../hooks/useWarnings';
 import { WarningsContext } from '../context/WarningsContext';
 import { textFileAdapter } from '../adapters/textFileAdapter';
-
-const DEFAULT_TEXT = `title Tasks Planner
-dateFormat DD-MM-YYYY
-quarter Q1 :01-01-2026, 31-03-2026
-quarter Q2 :01-04-2026, 30-06-2026
-milestone Sprint Review :M1, 14-03-2026
-milestone Release :01-06-2026
-section Frontend
-Task 1 :T1, 01-03-2026, 15d
-Task 2 :T2, after T1, 20d
-section Backend
-Task 3 :T3, 01-03-2026, 20d
-Task 4 :T4, after T3, 14d
-section QA
-Task 5 :T5, 01-05-2026, 21d
-Task 6 :T6, 14d`;
+import { DEFAULT_TEXT } from '../lib/defaultText';
 
 export default function App() {
   const { text, fileName, isDirty, fileErrors, handleChange, handleOpen, handleSave, handleSaveAs, handleFileInputChange, fileInputRef } =
