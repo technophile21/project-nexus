@@ -12,7 +12,7 @@ interface TimelineGridProps {
   weekRowY: number;
   quarters: Quarter[];
   workingPeriod?: { startDate: Date; endDate: Date } | null;
-  holidays?: { name: string | null; date: Date }[];
+  holidays?: { date: Date }[];
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
