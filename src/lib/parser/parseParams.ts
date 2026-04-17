@@ -37,7 +37,7 @@ export function parseParams(
   params: string,
   taskName: string,
   warnings: ParseWarning[]
-): Omit<RawTask, 'name' | 'sectionId'> {
+): Omit<RawTask, 'name' | 'sectionId' | 'bandwidth'> {
   const trimmed = params.trim();
 
   // Case 1: "after <depId ...> [,] <N>d"  — no explicit task ID

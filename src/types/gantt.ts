@@ -31,7 +31,7 @@ export interface Section {
 export interface GanttData {
   title: string;
   workingPeriod: { startDate: Date; endDate: Date; workingDays: number } | null;
-  holidays: { date: Date }[];
+  holidays: { name: string | null; date: Date }[];
   sections: Section[];
   taskMap: Map<string, ResolvedTask>;
   chartStart: Date;

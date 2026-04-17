@@ -90,7 +90,7 @@ export function resolveGanttData(parsed: ParseResult): { data: GanttData; warnin
       warnings.push({ message: `holidays has an invalid date "${ph.dateStr}" — use DD-MM-YYYY format.` });
       continue;
     }
-    resolvedHolidays.push({ date });
+    resolvedHolidays.push({ date, name: null });
     holidaySet.add(toDateKey(date));
   }
 
