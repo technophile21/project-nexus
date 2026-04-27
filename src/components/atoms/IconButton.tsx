@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 interface IconButtonProps {
   icon: ReactNode;
   label?: string;
-  variant?: 'default' | 'ghost' | 'primary';
+  variant?: 'default' | 'ghost' | 'primary' | 'success';
   size?: 'sm' | 'md';
   title?: string;
   onClick: () => void;
@@ -14,6 +14,7 @@ const VARIANTS = {
   default: 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-gray-300 hover:text-gray-100 hover:bg-gray-700 disabled:opacity-40 text-xs font-medium transition-colors',
   ghost:   'flex items-center gap-1.5 px-2 py-1 rounded text-gray-400 hover:text-gray-200 disabled:opacity-40 text-xs transition-colors',
   primary: 'flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium transition-colors',
+  success: 'flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium transition-colors',
 };
 
 const SIZES = {

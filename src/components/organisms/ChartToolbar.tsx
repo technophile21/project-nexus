@@ -3,8 +3,8 @@ import { IconButton } from '../atoms/IconButton';
 
 interface ChartToolbarProps {
   title: string;
-  exporting: boolean;
-  onExport: () => void;
+  exportingExcel: boolean;
+  onExportExcel: () => void;
 }
 
 const ExportIcon = () => (
@@ -13,7 +13,7 @@ const ExportIcon = () => (
   </svg>
 );
 
-export function ChartToolbar({ title, exporting, onExport }: ChartToolbarProps) {
+export function ChartToolbar({ title, exportingExcel, onExportExcel }: ChartToolbarProps) {
   return (
     <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700 shrink-0 bg-gray-900">
       <h1 className="text-base font-semibold text-gray-100 tracking-wide">{title}</h1>
@@ -21,10 +21,10 @@ export function ChartToolbar({ title, exporting, onExport }: ChartToolbarProps) 
         <ChartLegend />
         <IconButton
           icon={<ExportIcon />}
-          label={exporting ? 'Exporting…' : 'Export PNG'}
-          variant="primary"
-          onClick={onExport}
-          disabled={exporting}
+          label={exportingExcel ? 'Exporting…' : 'Export Excel'}
+          variant="success"
+          onClick={onExportExcel}
+          disabled={exportingExcel}
         />
       </div>
     </div>

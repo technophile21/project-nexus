@@ -1,10 +1,10 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useCallback } from 'react';
 import type { GanttData } from '../../types/gantt';
 import { LAYOUT, barX, barWidth, getBarColor } from '../../lib/layoutEngine';
 import { dateToX } from '../../lib/layoutEngine';
 import { useGanttLayout } from './useGanttLayout';
 import { useGanttInteraction } from './useGanttInteraction';
-import { useGanttExport } from './useGanttExport';
+import { exportToExcel } from '../../exportToExcel';
 import { GanttView } from './GanttView';
 import { ChartToolbar } from '../../components/organisms/ChartToolbar';
 import type { BarItem, Marker } from './types';
@@ -14,12 +14,23 @@ interface GanttControllerProps {
 }
 
 export function GanttController({ data }: GanttControllerProps) {
-  const exportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const layout = useGanttLayout(data);
   const interaction = useGanttInteraction(scrollRef);
-  const { exporting, handleExport } = useGanttExport(exportRef, data?.title ?? 'gantt');
+
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const handleExportExcel = useCallback(async () => {
+    if (!data) return;
+    setExportingExcel(true);
+    try {
+      await exportToExcel(data);
+    } catch (err) {
+      console.error('[Export Excel] failed:', err);
+    } finally {
+      setExportingExcel(false);
+    }
+  }, [data]);
 
   // Transform resolved tasks → generic BarItems
   const barItems = useMemo<BarItem[]>(() => {
@@ -100,8 +111,12 @@ export function GanttController({ data }: GanttControllerProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-950" ref={exportRef}>
-      <ChartToolbar title={data.title} exporting={exporting} onExport={handleExport} />
+    <div className="flex flex-col h-full bg-gray-950">
+      <ChartToolbar
+        title={data.title}
+        exportingExcel={exportingExcel}
+        onExportExcel={handleExportExcel}
+      />
       <GanttView
         data={data}
         layout={layout!}
