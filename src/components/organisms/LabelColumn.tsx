@@ -1,0 +1,107 @@
+import type { RowInfo } from '../../lib/layoutEngine';
+import { LAYOUT } from '../../lib/layoutEngine';
+
+interface LabelColumnProps {
+  rows: RowInfo[];
+  totalHeight: number;
+  headerHeight: number;
+  weekRowY: number;
+  hoveredId: string | null;
+  svgRef?: React.RefObject<SVGSVGElement>;
+}
+
+export function LabelColumn({ rows, totalHeight, headerHeight, weekRowY, hoveredId, svgRef }: LabelColumnProps) {
+  const { LABEL_WIDTH, WEEK_HEADER_HEIGHT, SECTION_HEADER_HEIGHT, ROW_HEIGHT } = LAYOUT;
+
+  return (
+    <div className="shrink-0 overflow-hidden" style={{ width: LABEL_WIDTH }}>
+      <svg
+        ref={svgRef}
+        width={LABEL_WIDTH}
+        height={totalHeight}
+        style={{ fontFamily: 'system-ui, sans-serif', display: 'block' }}
+      >
+        <rect width={LABEL_WIDTH} height={totalHeight} fill="#0f172a" />
+        <rect width={LABEL_WIDTH} height={headerHeight} fill="#1e293b" />
+        <text x={14} y={weekRowY + WEEK_HEADER_HEIGHT / 2 + 5} fill="#64748b" fontSize={12} fontWeight="600">
+          Section
+        </text>
+        <line x1={0} y1={headerHeight} x2={LABEL_WIDTH} y2={headerHeight} stroke="#334155" strokeWidth={1} />
+
+        {rows.map((row) => {
+          if (row.type === 'section') {
+            const color = row.sectionColor!;
+            const status = row.sectionCapacityStatus ?? null;
+            const planned = row.sectionPlannedDays ?? 0;
+            const available = row.sectionAvailableDays ?? null;
+
+            // Violator only for over/under (not balanced, not null)
+            const violatorColor = status === 'over' ? '#ef4444' : status === 'under' ? '#f59e0b' : null;
+            const delta = available !== null ? planned - available : null;
+            const deltaText = delta !== null && violatorColor
+              ? (delta > 0 ? `+${delta}d` : `${delta}d`)
+              : null;
+
+            // Accent bar uses violator color when active, otherwise section color
+            const accentColor = violatorColor ?? color;
+
+            // Right-side stacking: show capacity% and/or delta badge
+            const showCapPct = row.sectionCapacity !== undefined && row.sectionCapacity < 100;
+            const showDelta = deltaText !== null;
+            const showBoth = showCapPct && showDelta;
+            const capPctY = showBoth ? row.y + 13 : row.y + SECTION_HEADER_HEIGHT / 2 + 5;
+            const deltaY = showBoth ? row.y + 26 : row.y + SECTION_HEADER_HEIGHT / 2 + 5;
+
+            return (
+              <g key={`lbl-s-${row.sectionIdx}`}>
+                {/* Base background */}
+                <rect x={0} y={row.y} width={LABEL_WIDTH} height={SECTION_HEADER_HEIGHT} fill={color} fillOpacity={0.18} />
+                {/* Violator tint overlay */}
+                {violatorColor && (
+                  <rect x={0} y={row.y} width={LABEL_WIDTH} height={SECTION_HEADER_HEIGHT} fill={violatorColor} fillOpacity={0.08} />
+                )}
+                {/* Left accent bar — colored by status */}
+                <rect x={0} y={row.y} width={4} height={SECTION_HEADER_HEIGHT} fill={accentColor} fillOpacity={0.9} />
+                <text x={14} y={row.y + SECTION_HEADER_HEIGHT / 2 + 5} fill={color} fontSize={12} fontWeight="700" letterSpacing="0.4">
+                  {row.sectionName}
+                </text>
+                {/* Capacity % badge */}
+                {showCapPct && (
+                  <text
+                    x={LABEL_WIDTH - 10} y={capPctY}
+                    fill={row.sectionCapacity === 0 ? '#ef4444' : color}
+                    fontSize={10} fontWeight="600" textAnchor="end" fillOpacity={0.75}
+                    style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    {row.sectionCapacity}%
+                  </text>
+                )}
+                {/* Capacity violator delta badge */}
+                {showDelta && (
+                  <text
+                    x={LABEL_WIDTH - 10} y={deltaY}
+                    fill={violatorColor!}
+                    fontSize={10} fontWeight="700" textAnchor="end"
+                    style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    {deltaText}
+                  </text>
+                )}
+                <line x1={0} y1={row.y + SECTION_HEADER_HEIGHT} x2={LABEL_WIDTH} y2={row.y + SECTION_HEADER_HEIGHT} stroke="#1e293b" strokeWidth={1} />
+              </g>
+            );
+          }
+
+          const laneHovered = hoveredId !== null && row.tasks!.some(t => t.id === hoveredId);
+          const dimmed = hoveredId !== null && !laneHovered;
+          return (
+            <g key={`lbl-l-${row.sectionIdx}-${row.laneIdx}`}>
+              <rect x={0} y={row.y} width={LABEL_WIDTH} height={ROW_HEIGHT} fill={laneHovered ? '#1e293b' : 'transparent'} fillOpacity={dimmed ? 0.4 : 1} />
+              <line x1={0} y1={row.y + ROW_HEIGHT} x2={LABEL_WIDTH} y2={row.y + ROW_HEIGHT} stroke="#1e293b" strokeWidth={1} />
+            </g>
+          );
+        })}
+
+        <line x1={LABEL_WIDTH - 1} y1={0} x2={LABEL_WIDTH - 1} y2={totalHeight} stroke="#334155" strokeWidth={1} />
+      </svg>
+    </div>
+  );
+}

@@ -1,0 +1,24 @@
+# Secrets
+.env
+.env.*
+secrets/
+*.pem
+*.key
+
+# SSH & credentials
+~/.ssh/
+.netrc
+
+# Shell history / dotfiles
+.zsh_history
+.zshrc
+.zprofile
+
+# Colab / HuggingFace tokens
+.huggingface/
+.kaggle/
+
+# Node / Python artifacts
+node_modules/
+__pycache__/
+.venv/
