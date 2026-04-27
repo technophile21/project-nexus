@@ -4,7 +4,6 @@ import { LAYOUT, barX, barWidth, getBarColor } from '../../lib/layoutEngine';
 import { dateToX } from '../../lib/layoutEngine';
 import { useGanttLayout } from './useGanttLayout';
 import { useGanttInteraction } from './useGanttInteraction';
-import { useGanttExport } from './useGanttExport';
 import { exportToExcel } from '../../exportToExcel';
 import { GanttView } from './GanttView';
 import { ChartToolbar } from '../../components/organisms/ChartToolbar';
@@ -15,12 +14,10 @@ interface GanttControllerProps {
 }
 
 export function GanttController({ data }: GanttControllerProps) {
-  const exportRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const layout = useGanttLayout(data);
   const interaction = useGanttInteraction(scrollRef);
-  const { exporting, handleExport } = useGanttExport(exportRef, data?.title ?? 'gantt');
 
   const [exportingExcel, setExportingExcel] = useState(false);
   const handleExportExcel = useCallback(async () => {
@@ -114,11 +111,9 @@ export function GanttController({ data }: GanttControllerProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-950" ref={exportRef}>
+    <div className="flex flex-col h-full bg-gray-950">
       <ChartToolbar
         title={data.title}
-        exporting={exporting}
-        onExport={handleExport}
         exportingExcel={exportingExcel}
         onExportExcel={handleExportExcel}
       />
