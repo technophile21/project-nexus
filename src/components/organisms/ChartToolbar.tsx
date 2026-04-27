@@ -5,6 +5,8 @@ interface ChartToolbarProps {
   title: string;
   exporting: boolean;
   onExport: () => void;
+  exportingExcel: boolean;
+  onExportExcel: () => void;
 }
 
 const ExportIcon = () => (
@@ -13,12 +15,19 @@ const ExportIcon = () => (
   </svg>
 );
 
-export function ChartToolbar({ title, exporting, onExport }: ChartToolbarProps) {
+export function ChartToolbar({ title, exporting, onExport, exportingExcel, onExportExcel }: ChartToolbarProps) {
   return (
     <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700 shrink-0 bg-gray-900">
       <h1 className="text-base font-semibold text-gray-100 tracking-wide">{title}</h1>
       <div className="flex items-center gap-4">
         <ChartLegend />
+        <IconButton
+          icon={<ExportIcon />}
+          label={exportingExcel ? 'Exporting…' : 'Export Excel'}
+          variant="success"
+          onClick={onExportExcel}
+          disabled={exportingExcel}
+        />
         <IconButton
           icon={<ExportIcon />}
           label={exporting ? 'Exporting…' : 'Export PNG'}
