@@ -1,5 +1,149 @@
 # Project Nexus: Design Diagrams
 
+## 0. High-level modules, responsibilities, and dependencies (color-coded)
+
+**Legend**
+
+| Color | Meaning |
+| --- | --- |
+| Blue | **Foundation** — shared types; no inward project imports. |
+| Teal | **I/O boundary** — pluggable adapters behind `DataSourceAdapter`. |
+| Green | **Pure domain pipeline** — parse, resolve, layout math; no React. |
+| Purple | **React glue** — hooks and context wiring application state. |
+| Gray | **UI kit** — atoms/molecules; mostly generic presentation. |
+| Orange | **Coupling hotspot** — feature and chart UI share types and `layoutEngine` in both directions; good candidate for a dedicated `gantt-chart/` or `packages/chart-ui` module with a single public surface. |
+| Red (dashed) | **Legacy / parallel paths** — not on the main `App` tree; consolidate or remove to avoid drift. |
+
+**Responsibilities (short)**
+
+- **`types/`** — `GanttData`, parse results, markers, warnings.
+- **`adapters/`** — open/save/saveAs for a data source (browser FSA, legacy file input, future CSV).
+- **`lib/parser/`** + **`core/resolver`** — text → structured model → resolved dates, bounds, warnings.
+- **`lib/layoutEngine`** + **`lib/dateUtils`** + **`lib/colors`** — geometry, weeks, palette.
+- **`hooks/`** — `useFileIO`, `useGanttData`, `useWarnings` compose the above for React.
+- **`context/`** — warning aggregation for `ErrorBanner` without prop drilling.
+- **`features/editor`** — editor panel + file chrome.
+- **`features/gantt`** — chart controller, layout/interaction/export hooks, `GanttView` assembly.
+- **`components/`** — shared atoms/molecules/organisms; chart organisms depend on **both** `features/gantt` types and `lib/layoutEngine`.
+- **`electron/`** — desktop shell (window, `app://` protocol); separate from the Vite/React tree.
+
+```mermaid
+flowchart TB
+  subgraph LEGACY["Legacy — not used by App.tsx"]
+    direction LR
+    LEG_G["GanttChart.tsx"]
+    LEG_E["components/ErrorBanner.tsx"]
+  end
+
+  subgraph ELECTRON["electron/ — desktop shell"]
+    EL_MAIN["main.ts (BrowserWindow, app://)"]
+  end
+
+  subgraph FOUNDATION["types/ — foundation"]
+    TYPES["gantt, markers, parser types"]
+  end
+
+  subgraph ADAPTERS["adapters/ — I/O plug-ins"]
+    ADAPT_IF["DataSourceAdapter"]
+    ADAPT_TXT["textFileAdapter"]
+    ADAPT_IF --- ADAPT_TXT
+  end
+
+  subgraph PURE["lib/ + core/ — pure pipeline"]
+    direction TB
+    PARSER["lib/parser/*"]
+    RESOLVER["core/resolver"]
+    DATE["lib/dateUtils"]
+    COLORS["lib/colors"]
+    LAYOUT["lib/layoutEngine"]
+    PARSER --> RESOLVER
+    RESOLVER --> DATE
+    RESOLVER --> COLORS
+    LAYOUT --> DATE
+  end
+
+  subgraph GLUE["hooks/ + context/ — React wiring"]
+    H_FILE["useFileIO"]
+    H_DATA["useGanttData"]
+    H_WARN["useWarnings"]
+    CTX["WarningsContext"]
+    H_FILE --> ADAPT_IF
+    H_DATA --> PARSER
+    H_DATA --> RESOLVER
+    H_WARN --> CTX
+  end
+
+  subgraph UIKIT["components/ — atoms · molecules"]
+    ATOMS["atoms"]
+    MOL["molecules"]
+  end
+
+  subgraph HOTSPOT["Coupling hotspot — gantt feature ↔ chart organisms"]
+    direction TB
+    GC["GanttController"]
+    GV["GanttView"]
+    HOOKS_F["useGanttLayout · Interaction · Export"]
+    ORG["organisms: Bars, MarkerLayer, TimelineGrid, …"]
+    GC --> HOOKS_F
+    GC --> LAYOUT
+    GC --> GV
+    GV --> ORG
+    ORG --> LAYOUT
+    ORG --> FTYPES["features/gantt/types BarItem, Marker"]
+  end
+
+  subgraph EDITOR["features/editor"]
+    EC["EditorController"]
+    EV["EditorView"]
+    EC --> EV
+    EV --> MOL
+  end
+
+  APP["App.tsx"] --> H_FILE
+  APP --> H_DATA
+  APP --> H_WARN
+  APP --> CTX
+  APP --> EC
+  APP --> GC
+  APP --> ADAPT_TXT
+
+  TYPES --> PARSER
+  TYPES --> RESOLVER
+  TYPES --> LAYOUT
+  TYPES --> GC
+  TYPES --> ORG
+
+  classDef foundation fill:#dae8fc,stroke:#6c8ebf,color:#111
+  classDef adapter fill:#d5e8d4,stroke:#82b366,color:#111
+  classDef pure fill:#e1d5e7,stroke:#9673a6,color:#111
+  classDef glue fill:#fff2cc,stroke:#d6b656,color:#111
+  classDef uikit fill:#f5f5f5,stroke:#666666,color:#111
+  classDef hotspot fill:#ffe0b2,stroke:#e65100,color:#111
+  classDef legacy stroke:#c62828,stroke-dasharray: 5 5,fill:#ffebee,color:#111
+  classDef electron fill:#e3f2fd,stroke:#1565c0,color:#111
+
+  class TYPES foundation
+  class ADAPT_IF,ADAPT_TXT adapter
+  class PARSER,RESOLVER,DATE,COLORS,LAYOUT pure
+  class H_FILE,H_DATA,H_WARN,CTX glue
+  class ATOMS,MOL uikit
+  class GC,GV,HOOKS_F,ORG,FTYPES hotspot
+  class LEG_G,LEG_E legacy
+  class EL_MAIN electron
+```
+
+**Modularisation notes (orange cluster)**
+
+- **`GanttController`** maps `GanttData` → `BarItem[]` / `Marker[]` using **`layoutEngine`** and **`features/gantt/types`**; **`GanttView`** then delegates to **`components/organisms`** that import the same **`layoutEngine`** constants and **`BarItem` / `Marker`**. That is a **round trip** between `features/gantt` and `components/organisms`.
+- A natural next step is to **co-locate** chart-specific organisms under `features/gantt/` (or extract a **`@nexus/gantt-ui`** package) so **`layoutEngine` + bar/marker view types** share one module boundary.
+- **`electron/`** is already isolated; keep protocol and window logic out of `src/`.
+
+**Legacy (red)**
+
+- **`src/components/GanttChart.tsx`** and **`src/components/ErrorBanner.tsx`** duplicate responsibilities of the feature + organism paths; removing or re-exporting from a single place reduces confusion.
+
+---
+
 ## 1. Layer Dependency
 
 What can import what. Lower layers never import from higher.
